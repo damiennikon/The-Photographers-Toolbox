@@ -25,7 +25,7 @@ Pages (`.github/workflows/deploy.yml`, using the official
 `actions/upload-pages-artifact` + `actions/deploy-pages`). In the repo's
 **Settings → Pages**, set **Source: GitHub Actions** (one-time setup).
 
-The Vite `base` in `vite.config.js` is set to `/photographers-toolbox/` to
+The Vite `base` in `vite.config.js` is set to `/The-Photographers-Toolbox/` to
 match this project's Pages URL. If the repo is ever renamed, update that
 value (and the absolute paths in `public/manifest.json`) to match.
 

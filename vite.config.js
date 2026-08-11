@@ -1,8 +1,8 @@
 import { defineConfig } from "vite";
 
-// Project site on GitHub Pages: https://<user>.github.io/photographers-toolbox/
+// Project site on GitHub Pages: https://<user>.github.io/The-Photographers-Toolbox/
 export default defineConfig({
-  base: "/photographers-toolbox/",
+  base: "/The-Photographers-Toolbox/",
   build: {
     outDir: "dist",
   },
