@@ -3,6 +3,11 @@
 //
 // type: "iframe"      -> renders full-screen at #/tool/:id via <iframe src=url>
 // type: "placeholder" -> tapping the tile opens a "Coming soon" modal instead of navigating
+//
+// backgroundImage: path relative to the app's base (resolved against
+// import.meta.env.BASE_URL at render time) -> public/assets/tiles/*.webp.
+// bg: fallback CSS gradient class suffix, used if backgroundImage is
+// missing or fails to load (see .pt-tile-bg--<bg> in components.css).
 export const TOOLS = [
   {
     id: "spotters-log",
@@ -10,6 +15,7 @@ export const TOOLS = [
     description: "Live flight tracking, arrivals, departures and more.",
     icon: "plane",
     bg: "aviation",
+    backgroundImage: "assets/tiles/spotters-log.webp",
     type: "iframe",
     // NOTE: will change when Spotters Log moves to damienleydenphotography.au — update here only
     url: "https://airscapephotos.com/photo-log/index-layout-test.html",
@@ -20,6 +26,7 @@ export const TOOLS = [
     description: "Real-time astro weather conditions at your location.",
     icon: "cloudMoon",
     bg: "astro",
+    backgroundImage: "assets/tiles/astro-weather.webp",
     type: "iframe",
     url: "https://damiennikon.github.io/astro-weather/",
   },
@@ -29,6 +36,7 @@ export const TOOLS = [
     description: "Search and explore deep sky objects in the night sky.",
     icon: "telescope",
     bg: "dso",
+    backgroundImage: "assets/tiles/dso-search.webp",
     type: "iframe",
     url: "https://damiennikon.github.io/DSO-Search/",
   },
@@ -38,6 +46,7 @@ export const TOOLS = [
     description: "Plan the perfect night with detailed astro insights.",
     icon: "calendarStar",
     bg: "planner",
+    backgroundImage: "assets/tiles/astro-planner.webp",
     type: "placeholder",
   },
 ];

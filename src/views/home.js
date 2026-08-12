@@ -6,9 +6,15 @@ import { openSettings } from "../components/settingsModal.js";
 import { openPlaceholder } from "../components/placeholderModal.js";
 
 function tileMarkup(tool) {
+  const bgImg = tool.backgroundImage
+    ? `<img class="pt-tile-img" src="${import.meta.env.BASE_URL}${tool.backgroundImage}" alt="" loading="lazy" data-tile-img />`
+    : "";
+  // No backgroundImage configured -> render straight into fallback mode.
+  const fallbackClass = tool.backgroundImage ? "" : ` pt-tile-bg--fallback pt-tile-bg--${tool.bg}`;
+
   return `
     <a href="#" class="pt-tile" data-tool-id="${tool.id}" data-tool-type="${tool.type}" data-disabled="${tool.type === "placeholder"}">
-      <div class="pt-tile-bg pt-tile-bg--${tool.bg}"></div>
+      <div class="pt-tile-bg${fallbackClass}" data-tile-bg data-bg="${tool.bg}">${bgImg}</div>
       <div class="pt-tile-badge">${icon(tool.icon)}</div>
       <h3 class="pt-tile-name">${tool.name}</h3>
       <div class="pt-tile-underline"></div>
@@ -45,6 +51,16 @@ export function renderHome(container) {
 
   container.querySelector("[data-open-nav]").addEventListener("click", openNavDrawer);
   container.querySelector("[data-open-settings]").addEventListener("click", openSettings);
+
+  // Missing/broken tile image -> drop back to the flat gradient card style
+  // instead of leaving a broken-image icon in the layout.
+  container.querySelectorAll("[data-tile-img]").forEach((img) => {
+    img.addEventListener("error", () => {
+      const wrap = img.closest("[data-tile-bg]");
+      img.remove();
+      wrap.classList.add("pt-tile-bg--fallback", `pt-tile-bg--${wrap.dataset.bg}`);
+    });
+  });
 
   container.querySelectorAll("[data-tool-id]").forEach((tile) => {
     tile.addEventListener("click", (e) => {

@@ -182,14 +182,28 @@
   position: absolute;
   inset: 0;
   z-index: -2;
-  opacity: 0.55;
+  overflow: hidden;
+}
+
+.pt-tile-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
 }
 
 .pt-tile-bg::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(10, 14, 20, 0.35) 0%, rgba(10, 14, 20, 0.85) 75%, var(--pt-bg) 100%);
+  background: linear-gradient(180deg, rgba(10, 14, 20, 0.08) 0%, rgba(10, 14, 20, 0.6) 55%, rgba(10, 14, 20, 0.92) 100%);
+}
+
+/* No image / image failed to load -> fall back to the flat gradient card
+   look from before this pass, dimmed the same way it always was. */
+.pt-tile-bg--fallback {
+  opacity: 0.55;
 }
 
 .pt-tile-badge {
@@ -463,7 +477,8 @@
 .pt-tool-topbar {
   display: flex;
   align-items: center;
-  gap: var(--pt-space-3);
+  justify-content: space-between;
+  gap: var(--pt-space-2);
   height: var(--pt-topbar-height);
   padding: 0 var(--pt-space-4);
   border-bottom: 1px solid var(--pt-border);
@@ -471,11 +486,79 @@
   flex: 0 0 auto;
 }
 
+.pt-tool-back {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+  flex: 0 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-sm);
+  padding: 8px 12px;
+  color: var(--pt-text);
+}
+
+.pt-tool-back:hover {
+  border-color: var(--pt-accent);
+  background: rgba(224, 41, 58, 0.08);
+}
+
+.pt-tool-back svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.pt-tool-back-label {
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-tool-current {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.pt-tool-current-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--pt-accent);
+  flex: 0 0 auto;
+}
+
 .pt-tool-title {
   font-family: var(--pt-font-heading);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-size: 16px;
+  font-size: 14px;
+  color: var(--pt-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-tool-back-label--short {
+  display: none;
+}
+
+/* Narrow phones: drop to the shorter back label so nothing wraps or
+   truncates against the tool name on the right. */
+@media (max-width: 360px) {
+  .pt-tool-back-label--full {
+    display: none;
+  }
+  .pt-tool-back-label--short {
+    display: inline;
+  }
 }
 
 .pt-tool-frame-wrap {

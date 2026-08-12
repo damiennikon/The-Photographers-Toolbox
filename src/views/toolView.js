@@ -26,8 +26,15 @@ export function renderToolView(container, toolId) {
   container.innerHTML = `
     <div class="pt-tool-view">
       <header class="pt-tool-topbar">
-        <button class="pt-icon-btn" data-back aria-label="Back to home">${icon("arrowLeft")}</button>
-        <span class="pt-tool-title">${tool.name}</span>
+        <button class="pt-tool-back" data-back aria-label="Back to toolbox">
+          ${icon("arrowLeft")}
+          <span class="pt-tool-back-label pt-tool-back-label--full">Back to Toolbox</span>
+          <span class="pt-tool-back-label pt-tool-back-label--short">Toolbox</span>
+        </button>
+        <div class="pt-tool-current">
+          ${icon(tool.icon, "pt-tool-current-icon")}
+          <span class="pt-tool-title">${tool.name}</span>
+        </div>
       </header>
       <div class="pt-tool-frame-wrap" data-frame-wrap>
         <div class="pt-tool-fallback" data-loading>
