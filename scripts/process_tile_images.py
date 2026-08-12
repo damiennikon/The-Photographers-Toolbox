@@ -1,28 +1,16 @@
-"""Crops the tile mockup source images down to just their photographic
-background (above the pre-rendered icon/title/description block), resizes,
-and converts to WebP for use as tile background-images.
+"""Converts the tile source images to WebP for use as tile background-images,
+with no cropping or resizing beyond compression.
 
-The live tile component (src/views/home.js) renders its own icon badge,
-title, underline, description, and chevron on top via CSS/HTML -- so the
-source mockups' baked-in badge/text has to be cropped out first. Two things
-were tried and rejected before landing on "crop above the badge":
-  - No crop at all (full square) leaves the mockup's own baked-in title and
-    description text sitting right behind the live copy, at a different
-    position/font -- reads as visibly doubled text.
-  - Cropping to just above the *text* (keeping the badge) leaves the
-    mockup's own large badge circle+icon as a visible "ghost" duplicate of
-    the live badge, even under the gradient -- it's a bigger, differently
-    positioned shape, not just faint text, so it doesn't disappear the way
-    the text does.
-Cropping above the badge avoids both. It does mean the usable strip is
-short/wide (photo-only region ends well before the square canvas does),
-so at the near-square tile aspect ratio this now ships at, object-fit:
-cover has to crop a fair amount off the sides -- that's a real limit of
-these baked-mockup sources, not something tunable away in CSS (see
-per-tile object-position comment in components.css).
+Earlier source images had text/badges/UI baked directly into the photo (by
+the AI generator that made them), which forced a crop step here to keep
+that baked-in content from doubling up with the live-rendered badge/title/
+description in src/views/home.js. The current sources are plain photography
+with nothing baked in, so no crop is needed -- object-fit: cover in
+components.css handles fitting the square photo into the near-square tile
+box directly.
 
 Source files (not committed — see .gitignore) live in the repo root:
-  spotters_log_ui.jpg, astroweather_ui.jpg, dso_search_ui.jpg, astro_planner_ui.jpg
+  spotters_log_ui.png, astroweather_ui.png, dso_search_ui.png, astro_planner_ui.png
 
 Run with: python scripts/process_tile_images.py
 """
@@ -32,24 +20,22 @@ from PIL import Image
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 OUT_DIR = os.path.join(ROOT, "public", "assets", "tiles")
 
-# All source mockups share the same ~1404x1407 canvas, but the badge circle
-# doesn't start at exactly the same y on every one (it's composited over each
-# photo individually) -- measured badge-top per image, each with a ~5px
-# safety margin above it.
-OUT_WIDTH = 1000
+# Source photos are ~1500x1500 -- cap the long edge on the way out purely to
+# keep file size down for a background-image; this is not a crop.
+MAX_DIMENSION = 1000
 QUALITY = 78
 
 SOURCES = {
-    "spotters_log_ui.jpg": ("spotters-log.webp", 518),
-    "astroweather_ui.jpg": ("astro-weather.webp", 517),
-    "dso_search_ui.jpg": ("dso-search.webp", 535),
-    "astro_planner_ui.jpg": ("astro-planner.webp", 531),
+    "spotters_log_ui.png": "spotters-log.webp",
+    "astroweather_ui.png": "astro-weather.webp",
+    "dso_search_ui.png": "dso-search.webp",
+    "astro_planner_ui.png": "astro-planner.webp",
 }
 
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
-    for src_name, (out_name, crop_height) in SOURCES.items():
+    for src_name, out_name in SOURCES.items():
         src_path = os.path.join(ROOT, src_name)
         if not os.path.exists(src_path):
             print(f"skip (not found): {src_name}")
@@ -57,15 +43,15 @@ def main():
 
         img = Image.open(src_path).convert("RGB")
         w, h = img.size
-        cropped = img.crop((0, 0, w, min(crop_height, h)))
-
-        out_h = round(cropped.height * (OUT_WIDTH / cropped.width))
-        resized = cropped.resize((OUT_WIDTH, out_h), Image.LANCZOS)
+        longest = max(w, h)
+        if longest > MAX_DIMENSION:
+            scale = MAX_DIMENSION / longest
+            img = img.resize((round(w * scale), round(h * scale)), Image.LANCZOS)
 
         out_path = os.path.join(OUT_DIR, out_name)
-        resized.save(out_path, "WEBP", quality=QUALITY, method=6)
+        img.save(out_path, "WEBP", quality=QUALITY, method=6)
         size_kb = os.path.getsize(out_path) / 1024
-        print(f"wrote {out_path} ({resized.width}x{resized.height}, {size_kb:.1f} KB)")
+        print(f"wrote {out_path} ({img.width}x{img.height}, {size_kb:.1f} KB)")
 
 
 if __name__ == "__main__":

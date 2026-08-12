@@ -194,29 +194,6 @@
   display: block;
 }
 
-/* These images ship as a short/wide strip (the usable photo region in each
-   source mockup, above its baked-in badge -- see
-   scripts/process_tile_images.py), which is much wider than the near-square
-   tile box. object-fit: cover therefore always fits the vertical axis
-   exactly and crops horizontally; per-tile offsets below keep each photo's
-   actual subject centered in that horizontal crop instead of the default
-   50% cutting into it. */
-.pt-tile-img--aviation {
-  object-position: 53% center;
-}
-
-.pt-tile-img--astro {
-  object-position: 40% center;
-}
-
-.pt-tile-img--dso {
-  object-position: 44% center;
-}
-
-.pt-tile-img--planner {
-  object-position: 33% center;
-}
-
 .pt-tile-bg::after {
   content: "";
   position: absolute;
