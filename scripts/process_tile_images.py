@@ -1,11 +1,25 @@
 """Crops the tile mockup source images down to just their photographic
-background (top ~35%, above the pre-rendered icon/title/description block),
-resizes, and converts to WebP for use as tile background-images.
+background (above the pre-rendered icon/title/description block), resizes,
+and converts to WebP for use as tile background-images.
 
 The live tile component (src/views/home.js) renders its own icon badge,
-title, underline, description, and chevron on top via CSS/HTML — so the
-source mockups' baked-in text/badge has to be cropped out first, or it'd
-double up with the live-rendered copy.
+title, underline, description, and chevron on top via CSS/HTML -- so the
+source mockups' baked-in badge/text has to be cropped out first. Two things
+were tried and rejected before landing on "crop above the badge":
+  - No crop at all (full square) leaves the mockup's own baked-in title and
+    description text sitting right behind the live copy, at a different
+    position/font -- reads as visibly doubled text.
+  - Cropping to just above the *text* (keeping the badge) leaves the
+    mockup's own large badge circle+icon as a visible "ghost" duplicate of
+    the live badge, even under the gradient -- it's a bigger, differently
+    positioned shape, not just faint text, so it doesn't disappear the way
+    the text does.
+Cropping above the badge avoids both. It does mean the usable strip is
+short/wide (photo-only region ends well before the square canvas does),
+so at the near-square tile aspect ratio this now ships at, object-fit:
+cover has to crop a fair amount off the sides -- that's a real limit of
+these baked-mockup sources, not something tunable away in CSS (see
+per-tile object-position comment in components.css).
 
 Source files (not committed — see .gitignore) live in the repo root:
   spotters_log_ui.jpg, astroweather_ui.jpg, dso_search_ui.jpg, astro_planner_ui.jpg
@@ -18,12 +32,11 @@ from PIL import Image
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 OUT_DIR = os.path.join(ROOT, "public", "assets", "tiles")
 
-# All source mockups share the same 1404x1407 canvas, but the badge circle
+# All source mockups share the same ~1404x1407 canvas, but the badge circle
 # doesn't start at exactly the same y on every one (it's composited over each
-# photo individually) -- measured badge-top per image, each with a ~5px safety
-# margin above it, so every crop keeps as much of the photo as possible
-# without pulling in any of the baked-in icon/title/description block.
-OUT_WIDTH = 900
+# photo individually) -- measured badge-top per image, each with a ~5px
+# safety margin above it.
+OUT_WIDTH = 1000
 QUALITY = 78
 
 SOURCES = {

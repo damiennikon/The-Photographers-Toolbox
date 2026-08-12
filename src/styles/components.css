@@ -154,6 +154,7 @@
   border: 1px solid var(--pt-border);
   border-radius: var(--pt-radius-lg);
   overflow: hidden;
+  aspect-ratio: 0.92;
   min-height: 220px;
   display: flex;
   flex-direction: column;
@@ -189,16 +190,17 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center top;
+  object-position: center;
   display: block;
 }
 
-/* These images ship pre-cropped to a wide strip (see
-   scripts/process_tile_images.py) that's already close to the tile box's
-   aspect ratio, so object-fit: cover only ever overflows horizontally --
-   the vertical axis fits exactly at any viewport width. Per-tile horizontal
-   offsets below keep each photo's subject centered in that crop instead of
-   the default 50% cutting into it on narrow/mobile widths. */
+/* These images ship as a short/wide strip (the usable photo region in each
+   source mockup, above its baked-in badge -- see
+   scripts/process_tile_images.py), which is much wider than the near-square
+   tile box. object-fit: cover therefore always fits the vertical axis
+   exactly and crops horizontally; per-tile offsets below keep each photo's
+   actual subject centered in that horizontal crop instead of the default
+   50% cutting into it. */
 .pt-tile-img--aviation {
   object-position: 53% center;
 }
