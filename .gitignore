@@ -3,9 +3,9 @@ dist/
 .DS_Store
 *.local
 
-# Raw tile mockups used as source for scripts/process_tile_images.py —
+# Raw tile source photos used as source for scripts/process_tile_images.py —
 # the derived public/assets/tiles/*.webp are what actually ships.
-/spotters_log_ui.jpg
-/astroweather_ui.jpg
-/dso_search_ui.jpg
-/astro_planner_ui.jpg
+/spotters_log_ui.png
+/astroweather_ui.png
+/dso_search_ui.png
+/astro_planner_ui.png
