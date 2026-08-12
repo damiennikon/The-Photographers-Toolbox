@@ -193,6 +193,28 @@
   display: block;
 }
 
+/* These images ship pre-cropped to a wide strip (see
+   scripts/process_tile_images.py) that's already close to the tile box's
+   aspect ratio, so object-fit: cover only ever overflows horizontally --
+   the vertical axis fits exactly at any viewport width. Per-tile horizontal
+   offsets below keep each photo's subject centered in that crop instead of
+   the default 50% cutting into it on narrow/mobile widths. */
+.pt-tile-img--aviation {
+  object-position: 53% center;
+}
+
+.pt-tile-img--astro {
+  object-position: 40% center;
+}
+
+.pt-tile-img--dso {
+  object-position: 44% center;
+}
+
+.pt-tile-img--planner {
+  object-position: 33% center;
+}
+
 .pt-tile-bg::after {
   content: "";
   position: absolute;

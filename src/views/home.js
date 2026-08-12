@@ -7,7 +7,7 @@ import { openPlaceholder } from "../components/placeholderModal.js";
 
 function tileMarkup(tool) {
   const bgImg = tool.backgroundImage
-    ? `<img class="pt-tile-img" src="${import.meta.env.BASE_URL}${tool.backgroundImage}" alt="" loading="lazy" data-tile-img />`
+    ? `<img class="pt-tile-img pt-tile-img--${tool.bg}" src="${import.meta.env.BASE_URL}${tool.backgroundImage}" alt="" loading="lazy" data-tile-img />`
     : "";
   // No backgroundImage configured -> render straight into fallback mode.
   const fallbackClass = tool.backgroundImage ? "" : ` pt-tile-bg--fallback pt-tile-bg--${tool.bg}`;
