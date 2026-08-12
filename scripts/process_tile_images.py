@@ -18,23 +18,25 @@ from PIL import Image
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 OUT_DIR = os.path.join(ROOT, "public", "assets", "tiles")
 
-# All source mockups share the same 1404x1407 canvas with the badge starting
-# at ~y=530 — crop at 500 to leave a clean margin above it on every image.
-CROP_HEIGHT = 500
+# All source mockups share the same 1404x1407 canvas, but the badge circle
+# doesn't start at exactly the same y on every one (it's composited over each
+# photo individually) -- measured badge-top per image, each with a ~5px safety
+# margin above it, so every crop keeps as much of the photo as possible
+# without pulling in any of the baked-in icon/title/description block.
 OUT_WIDTH = 900
 QUALITY = 78
 
 SOURCES = {
-    "spotters_log_ui.jpg": "spotters-log.webp",
-    "astroweather_ui.jpg": "astro-weather.webp",
-    "dso_search_ui.jpg": "dso-search.webp",
-    "astro_planner_ui.jpg": "astro-planner.webp",
+    "spotters_log_ui.jpg": ("spotters-log.webp", 518),
+    "astroweather_ui.jpg": ("astro-weather.webp", 517),
+    "dso_search_ui.jpg": ("dso-search.webp", 535),
+    "astro_planner_ui.jpg": ("astro-planner.webp", 531),
 }
 
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
-    for src_name, out_name in SOURCES.items():
+    for src_name, (out_name, crop_height) in SOURCES.items():
         src_path = os.path.join(ROOT, src_name)
         if not os.path.exists(src_path):
             print(f"skip (not found): {src_name}")
@@ -42,7 +44,7 @@ def main():
 
         img = Image.open(src_path).convert("RGB")
         w, h = img.size
-        cropped = img.crop((0, 0, w, min(CROP_HEIGHT, h)))
+        cropped = img.crop((0, 0, w, min(crop_height, h)))
 
         out_h = round(cropped.height * (OUT_WIDTH / cropped.width))
         resized = cropped.resize((OUT_WIDTH, out_h), Image.LANCZOS)
