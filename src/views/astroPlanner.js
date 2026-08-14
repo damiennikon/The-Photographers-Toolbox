@@ -12,7 +12,7 @@ import {
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
 
 // Matches the default location used by the toolbox's other tools.
-const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185 };
+const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185, countryCode: "au", countryName: "Australia" };
 
 function todayInputValue() {
   const d = new Date();
@@ -34,7 +34,9 @@ function formatTime(date) {
 function formatDuration(start, end) {
   if (!start || !end) return "—";
   const mins = Math.round((end - start) / 60000);
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h === 0 ? `${m}m` : `${h}h ${m}m`;
 }
 
 function computeDashboard(state) {
@@ -47,14 +49,47 @@ function computeDashboard(state) {
   return { darkness, moon, illumination, milkyWay };
 }
 
-function moonFlag(darkness, moon) {
+// Tier boundaries and severity wording mirror AstroWeather's own moon-impact
+// scoring (src/scoring.js: moonScore bands at illumination <=10/25/50/80%,
+// with a hard veto above 80%) so the two tools agree on what "bad" means.
+function moonSeverityText(illumination) {
+  if (illumination <= 10) return "negligible — minimal impact on deep sky";
+  if (illumination <= 25) return "slight impact, faint targets still workable";
+  if (illumination <= 50) return "some impact on fainter targets, brighter DSOs fine";
+  if (illumination <= 80) return "will wash out fainter targets";
+  return "severe washout — essentially unshootable for deep sky";
+}
+
+function moonSeverityTone(illumination) {
+  if (illumination <= 25) return "good";
+  if (illumination <= 50) return "neutral";
+  return "warn";
+}
+
+// Plain-language description of when, within the dark window, the moon is
+// up — a moon up for the final 20 minutes of a 10-hour window reads very
+// differently to one up the entire night, even at identical illumination.
+function moonOverlapClause(darkness, moon) {
+  const atDusk = moon.overlapStart.getTime() <= darkness.duskStart.getTime() + 60000;
+  const tillDawn = moon.overlapEnd.getTime() >= darkness.dawnEnd.getTime() - 60000;
+
+  if (atDusk && tillDawn) return "up the entire night";
+  if (atDusk) return `up for the first ${formatDuration(darkness.duskStart, moon.overlapEnd)} (until ${formatTime(moon.overlapEnd)})`;
+  if (tillDawn) return `up for the final ${formatDuration(moon.overlapStart, darkness.dawnEnd)} (from ${formatTime(moon.overlapStart)})`;
+  return `up for ${formatDuration(moon.overlapStart, moon.overlapEnd)} (${formatTime(moon.overlapStart)}–${formatTime(moon.overlapEnd)})`;
+}
+
+function moonFlag(darkness, moon, illumination) {
   if (!darkness.valid || moon.upDuringDark === null) {
     return { tone: "neutral", text: "Can't determine dark-hours moon presence — no true astronomical darkness window for this date/location." };
   }
-  if (moon.upDuringDark) {
-    return { tone: "warn", text: "Moon is up during dark hours — will wash out fainter targets." };
+  if (!moon.upDuringDark) {
+    return { tone: "good", text: "Moon absent during dark hours — excellent for deep sky." };
   }
-  return { tone: "good", text: "Moon absent during dark hours — good for deep sky." };
+  return {
+    tone: moonSeverityTone(illumination),
+    text: `Moon ${moonOverlapClause(darkness, moon)} at ${illumination}% — ${moonSeverityText(illumination)}.`,
+  };
 }
 
 function moonRiseSetText(moon) {
@@ -90,7 +125,7 @@ function darknessCardMarkup(darkness) {
 }
 
 function moonCardMarkup(darkness, moon, illumination) {
-  const flag = moonFlag(darkness, moon);
+  const flag = moonFlag(darkness, moon, illumination);
   return `
     <section class="pt-card">
       <div class="pt-card-head">${icon("moon", "pt-card-icon")}<h3>Moon</h3></div>
@@ -173,12 +208,25 @@ function searchResultsMarkup(state) {
     .join("");
 }
 
+function effectiveCountryCode(state) {
+  return state.searchWorldwide ? null : state.location.countryCode || null;
+}
+
 function searchMarkup(state) {
+  const scopeLabel =
+    !state.searchWorldwide && state.location.countryName ? `Results scoped to ${state.location.countryName}` : "Searching worldwide";
   return `
     <div class="pt-planner-search">
       <div class="pt-planner-search-input-wrap">
         ${icon("search", "pt-planner-search-icon")}
-        <input type="text" class="pt-planner-search-input" data-location-input placeholder="Search for a place…" autocomplete="off" />
+        <input type="text" class="pt-planner-search-input" data-location-input placeholder="Search for a place…" autocomplete="off" value="${state.searchQuery}" />
+      </div>
+      <div class="pt-planner-search-scope">
+        <span>${scopeLabel}</span>
+        <label class="pt-planner-search-worldwide">
+          <input type="checkbox" data-search-worldwide ${state.searchWorldwide ? "checked" : ""} />
+          <span>Search worldwide</span>
+        </label>
       </div>
       <ul class="pt-planner-search-results" data-location-results>${searchResultsMarkup(state)}</ul>
     </div>`;
@@ -213,6 +261,8 @@ export function renderAstroPlanner(container) {
     location: { ...DEFAULT_LOCATION },
     locationStatus: "locating",
     searchOpen: false,
+    searchQuery: "",
+    searchWorldwide: false,
     searchResults: [],
     searchLoading: false,
     searchError: false,
@@ -270,6 +320,7 @@ export function renderAstroPlanner(container) {
         state.location = result;
         state.locationStatus = "resolved";
         state.searchOpen = false;
+        state.searchWorldwide = false;
         state.searchResults = [];
         render();
       });
@@ -286,6 +337,8 @@ export function renderAstroPlanner(container) {
 
     container.querySelector("[data-toggle-search]").addEventListener("click", () => {
       state.searchOpen = !state.searchOpen;
+      state.searchQuery = "";
+      state.searchWorldwide = false;
       state.searchResults = [];
       state.searchError = false;
       render();
@@ -294,12 +347,24 @@ export function renderAstroPlanner(container) {
     const searchInput = container.querySelector("[data-location-input]");
     if (searchInput) {
       searchInput.focus();
+      searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
       searchInput.addEventListener("input", (e) => {
         const q = e.target.value;
+        state.searchQuery = q;
         state.searchLoading = q.trim().length >= 3;
         state.searchError = false;
         updateResultsList();
-        searchDebounced(q);
+        searchDebounced(q, effectiveCountryCode(state));
+      });
+    }
+
+    const worldwideToggle = container.querySelector("[data-search-worldwide]");
+    if (worldwideToggle) {
+      worldwideToggle.addEventListener("change", (e) => {
+        state.searchWorldwide = e.target.checked;
+        state.searchLoading = state.searchQuery.trim().length >= 3;
+        render();
+        searchDebounced(state.searchQuery, effectiveCountryCode(state));
       });
     }
 
@@ -311,8 +376,8 @@ export function renderAstroPlanner(container) {
   getCurrentPosition()
     .then(({ lat, lon }) =>
       reverseGeocode(lat, lon)
-        .then((r) => ({ lat, lon, name: r.name }))
-        .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}` }))
+        .then((r) => ({ lat, lon, name: r.name, countryCode: r.countryCode, countryName: r.countryName }))
+        .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, countryCode: null, countryName: null }))
     )
     .catch(() => ({ ...DEFAULT_LOCATION }))
     .then((location) => {

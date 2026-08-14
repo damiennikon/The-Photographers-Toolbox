@@ -106,6 +106,26 @@
   outline: none;
 }
 
+.pt-planner-search-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pt-space-2);
+  font-size: 12px;
+  color: var(--pt-text-muted);
+}
+
+.pt-planner-search-worldwide {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.pt-planner-search-worldwide input {
+  accent-color: var(--pt-accent);
+}
+
 .pt-planner-search-results {
   list-style: none;
   margin: 0;

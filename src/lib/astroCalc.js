@@ -36,22 +36,51 @@ export function getDarknessWindow(date, lat, lon) {
   };
 }
 
+// Binary-searches a moon altitude=0 crossing between two sampled instants
+// (one above horizon, one below) — same refinement approach as the Milky Way
+// crossing search below, reused here so the "how much of the dark window"
+// picture is as precise as the visibility flag itself.
+function refineMoonCrossing(tBelowSide, tAboveSide, lat, lon, belowIsEarlier) {
+  let lo = belowIsEarlier ? tBelowSide : tAboveSide;
+  let hi = belowIsEarlier ? tAboveSide : tBelowSide;
+  const loIsBelow = getMoonPosition(new Date(lo), lat, lon).altitude <= 0;
+  for (let i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2;
+    const midIsBelow = getMoonPosition(new Date(mid), lat, lon).altitude <= 0;
+    if (midIsBelow === loIsBelow) lo = mid;
+    else hi = mid;
+  }
+  return new Date((lo + hi) / 2);
+}
+
 // Moonrise/moonset for the given calendar date, plus whether the moon is up
-// at any point during [duskStart, dawnEnd] (sampled every 15 min — cheap and
-// avoids fiddly rise/set interval-overlap math across midnight).
+// at any point during [duskStart, dawnEnd], and — if so — the (start, end)
+// sub-interval of the dark window it's up for (clipped to dusk/dawn at
+// either edge). Sampled every 15 min then refined via binary search, which
+// avoids fiddly rise/set interval-overlap math across midnight.
 export function getMoonInfo(date, lat, lon, duskStart, dawnEnd) {
   const times = getMoonTimes(date, lat, lon);
 
   let upDuringDark = null;
+  let overlapStart = null;
+  let overlapEnd = null;
+
   if (duskStart && dawnEnd) {
-    upDuringDark = false;
     const stepMs = 15 * 60 * 1000;
-    for (let t = duskStart.getTime(); t <= dawnEnd.getTime(); t += stepMs) {
-      const pos = getMoonPosition(new Date(t), lat, lon);
-      if (pos.altitude > 0) {
-        upDuringDark = true;
-        break;
-      }
+    const samples = [];
+    for (let t = duskStart.getTime(); t < dawnEnd.getTime(); t += stepMs) {
+      samples.push({ t, up: getMoonPosition(new Date(t), lat, lon).altitude > 0 });
+    }
+    samples.push({ t: dawnEnd.getTime(), up: getMoonPosition(dawnEnd, lat, lon).altitude > 0 });
+
+    upDuringDark = samples.some((s) => s.up);
+
+    if (upDuringDark) {
+      const firstIdx = samples.findIndex((s) => s.up);
+      const lastIdx = samples.length - 1 - [...samples].reverse().findIndex((s) => s.up);
+
+      overlapStart = firstIdx === 0 ? duskStart : refineMoonCrossing(samples[firstIdx - 1].t, samples[firstIdx].t, lat, lon, true);
+      overlapEnd = lastIdx === samples.length - 1 ? dawnEnd : refineMoonCrossing(samples[lastIdx].t, samples[lastIdx + 1].t, lat, lon, false);
     }
   }
 
@@ -61,6 +90,8 @@ export function getMoonInfo(date, lat, lon, duskStart, dawnEnd) {
     alwaysUp: !!times.alwaysUp,
     alwaysDown: !!times.alwaysDown,
     upDuringDark,
+    overlapStart,
+    overlapEnd,
   };
 }
 
