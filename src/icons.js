@@ -45,6 +45,18 @@ export const icons = {
   clock: wrap('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>'),
 
   info: wrap('<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor" stroke="none"/>'),
+
+  moon: wrap('<path d="M20.8 14.5A9 9 0 1 1 9.5 3.2a7 7 0 0 0 11.3 11.3z"/>'),
+
+  mapPin: wrap('<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>'),
+
+  search: wrap('<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
+
+  sunrise: wrap(
+    '<path d="M12 3v5"/><path d="m5.6 8.6 1.4 1.4"/><path d="m17 10 1.4-1.4"/><path d="M3 18h18"/><path d="M5 18a7 7 0 0 1 14 0"/><path d="m2 22 20 0"/>'
+  ),
+
+  calendar: wrap('<rect x="3" y="4.5" width="18" height="16" rx="2"/><line x1="3" y1="9.5" x2="21" y2="9.5"/><line x1="8" y1="2.5" x2="8" y2="6.5"/><line x1="16" y1="2.5" x2="16" y2="6.5"/>'),
 };
 
 export function icon(name, extraClass = "") {

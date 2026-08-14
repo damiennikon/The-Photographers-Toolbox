@@ -1,0 +1,318 @@
+/* ---------- Astro Planner: Night Quality Dashboard ---------- */
+
+.pt-planner-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  background: var(--pt-bg);
+}
+
+.pt-planner {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--pt-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-4);
+}
+
+/* ---------- controls: location + date ---------- */
+
+.pt-planner-controls {
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-lg);
+  background: var(--pt-card);
+  padding: var(--pt-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-3);
+}
+
+.pt-planner-location {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+}
+
+.pt-planner-location-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--pt-accent);
+  flex: 0 0 auto;
+}
+
+.pt-planner-location-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--pt-font-heading);
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-planner-location-change {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-sm);
+  padding: 6px 12px;
+  color: var(--pt-accent);
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 12px;
+}
+
+.pt-planner-location-change:hover {
+  border-color: var(--pt-accent);
+  background: rgba(224, 41, 58, 0.08);
+}
+
+.pt-planner-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-2);
+}
+
+.pt-planner-search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-sm);
+  padding: 8px 12px;
+  background: var(--pt-bg);
+}
+
+.pt-planner-search-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--pt-text-muted);
+  flex: 0 0 auto;
+}
+
+.pt-planner-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  color: var(--pt-text);
+  font-family: var(--pt-font-body);
+  font-size: 14px;
+}
+
+.pt-planner-search-input:focus {
+  outline: none;
+}
+
+.pt-planner-search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.pt-planner-search-results:empty {
+  display: none;
+}
+
+.pt-planner-search-result {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+  padding: var(--pt-space-2) var(--pt-space-3);
+  border-radius: var(--pt-radius-sm);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.pt-planner-search-result:hover {
+  background: rgba(224, 41, 58, 0.08);
+}
+
+.pt-planner-search-result svg {
+  width: 15px;
+  height: 15px;
+  color: var(--pt-accent);
+  flex: 0 0 auto;
+}
+
+.pt-planner-search-status {
+  padding: var(--pt-space-2) var(--pt-space-3);
+  font-size: 13px;
+  color: var(--pt-text-muted);
+}
+
+.pt-planner-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pt-space-3);
+  border-top: 1px solid var(--pt-border);
+  padding-top: var(--pt-space-3);
+}
+
+.pt-planner-date-label {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+  color: var(--pt-text-muted);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--pt-font-heading);
+}
+
+.pt-planner-date-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--pt-accent);
+}
+
+.pt-planner-date-input {
+  background: var(--pt-bg);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-sm);
+  padding: 6px 10px;
+  color: var(--pt-text);
+  font-family: var(--pt-font-body);
+  font-size: 14px;
+  color-scheme: dark;
+}
+
+/* ---------- cards ---------- */
+
+.pt-card {
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-lg);
+  background: var(--pt-card);
+  padding: var(--pt-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-3);
+}
+
+.pt-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+}
+
+.pt-card-head h3 {
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.pt-card-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--pt-accent);
+  flex: 0 0 auto;
+}
+
+.pt-planner-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pt-space-4);
+}
+
+.pt-planner-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pt-planner-stat-label {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pt-text-muted);
+}
+
+.pt-planner-stat-value {
+  font-family: var(--pt-font-heading);
+  font-size: 22px;
+  letter-spacing: 0.02em;
+}
+
+.pt-planner-stat-value--sm {
+  font-family: var(--pt-font-body);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pt-planner-empty {
+  color: var(--pt-text-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.pt-planner-note {
+  color: var(--pt-text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.pt-planner-flag {
+  padding: var(--pt-space-2) var(--pt-space-3);
+  border-radius: var(--pt-radius-sm);
+  font-size: 13px;
+  line-height: 1.4;
+  border: 1px solid var(--pt-border);
+}
+
+.pt-planner-flag--good {
+  border-color: #2a5c3a;
+  background: rgba(45, 140, 80, 0.12);
+  color: #7fd9a0;
+}
+
+.pt-planner-flag--warn {
+  border-color: var(--pt-accent-dim);
+  background: rgba(224, 41, 58, 0.1);
+  color: #ff8e98;
+}
+
+.pt-planner-flag--neutral {
+  color: var(--pt-text-muted);
+}
+
+/* ---------- AstroWeather link-out card ---------- */
+
+.pt-card--link {
+  text-decoration: none;
+  color: var(--pt-text);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.pt-card--link:hover,
+.pt-card--link:focus-visible {
+  border-color: var(--pt-accent);
+  transform: translateY(-1px);
+}
+
+.pt-planner-link-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pt-space-2);
+  color: var(--pt-accent);
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 13px;
+}
+
+.pt-planner-link-cta svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}

@@ -1,8 +1,9 @@
 // Single source of truth for tool tiles. Update URLs here only — layout
 // code never hardcodes a tool's name, icon, or destination.
 //
-// type: "iframe"      -> renders full-screen at #/tool/:id via <iframe src=url>
-// type: "placeholder" -> tapping the tile opens a "Coming soon" modal instead of navigating
+// type: "iframe"       -> renders full-screen at #/tool/:id via <iframe src=url>
+// type: "internal"     -> renders full-screen at #/tool/:id via a first-party view module (see main.js)
+// type: "placeholder"  -> tapping the tile opens a "Coming soon" modal instead of navigating
 //
 // backgroundImage: path relative to the app's base (resolved against
 // import.meta.env.BASE_URL at render time) -> public/assets/tiles/*.webp.
@@ -47,7 +48,7 @@ export const TOOLS = [
     icon: "calendarStar",
     bg: "planner",
     backgroundImage: "assets/tiles/astro-planner.webp",
-    type: "placeholder",
+    type: "internal",
   },
 ];
 
