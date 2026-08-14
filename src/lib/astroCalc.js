@@ -117,6 +117,14 @@ function coreHorizon(date, observer) {
   return Horizon(date, observer, GALACTIC_CORE_RA, GALACTIC_CORE_DEC, "normal");
 }
 
+// Galactic core's altitude/azimuth right now (or at any instant) for a given
+// location — the single live reading Night AR polls periodically, reusing
+// the exact same calculation as the visibility window above rather than a
+// second version of it.
+export function getGalacticCoreAltAz(date, lat, lon) {
+  return coreHorizon(date, new Observer(lat, lon, 0));
+}
+
 // Binary-searches the crossing of MILKY_WAY_MIN_ALTITUDE between two sampled
 // instants (one above, one below) to sub-second precision — far tighter than
 // the 5-minute sampling grid used to find the bracket in the first place.

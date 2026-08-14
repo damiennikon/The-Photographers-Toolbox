@@ -10,6 +10,7 @@ import {
   getMoonInfo,
 } from "../lib/astroCalc.js";
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
+import { openNightAR } from "../components/nightAR.js";
 
 // Matches the default location used by the toolbox's other tools.
 const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185, countryCode: "au", countryName: "Australia" };
@@ -143,12 +144,25 @@ function moonCardMarkup(darkness, moon, illumination) {
     </section>`;
 }
 
+// Lives on every Milky Way Core card state (even "not visible tonight") since
+// it reflects the live current position, not the selected planning date —
+// worth pointing your phone at even if tonight's computed window says no.
+function nightArButtonMarkup() {
+  return `
+    <button class="pt-planner-ar-btn" data-open-night-ar type="button">
+      ${icon("camera")}
+      <span>Night AR — where is the core right now?</span>
+    </button>
+    <p class="pt-planner-note">Points your camera toward the core's live position right now — independent of the date selected above.</p>`;
+}
+
 function milkyWayCardMarkup(milkyWay) {
   if (!milkyWay.visible) {
     return `
       <section class="pt-card">
         <div class="pt-card-head">${icon("telescope", "pt-card-icon")}<h3>Milky Way Core</h3></div>
         <p class="pt-planner-empty">Not visible tonight — the core stays below ${MILKY_WAY_MIN_ALTITUDE}° all night at this date/location.</p>
+        ${nightArButtonMarkup()}
       </section>`;
   }
 
@@ -162,6 +176,7 @@ function milkyWayCardMarkup(milkyWay) {
         <div class="pt-card-head">${icon("telescope", "pt-card-icon")}<h3>Milky Way Core</h3></div>
         <div class="pt-planner-flag pt-planner-flag--good">Visible all night — above ${MILKY_WAY_MIN_ALTITUDE}° for the entire dark window.</div>
         ${directionNote}
+        ${nightArButtonMarkup()}
       </section>`;
   }
 
@@ -179,6 +194,7 @@ function milkyWayCardMarkup(milkyWay) {
         </div>
       </div>
       ${directionNote}
+      ${nightArButtonMarkup()}
     </section>`;
 }
 
@@ -367,6 +383,10 @@ export function renderAstroPlanner(container) {
         searchDebounced(state.searchQuery, effectiveCountryCode(state));
       });
     }
+
+    container.querySelector("[data-open-night-ar]").addEventListener("click", () => {
+      openNightAR(state.location);
+    });
 
     bindResultClicks();
   }

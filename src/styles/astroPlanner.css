@@ -336,3 +336,174 @@
   height: 18px;
   flex: 0 0 auto;
 }
+
+/* ---------- Night AR entry button ---------- */
+
+.pt-planner-ar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pt-space-2);
+  width: 100%;
+  padding: var(--pt-space-3);
+  border: 1px solid var(--pt-accent);
+  border-radius: var(--pt-radius-sm);
+  background: rgba(224, 41, 58, 0.08);
+  color: var(--pt-accent);
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 13px;
+  text-align: center;
+}
+
+.pt-planner-ar-btn:hover {
+  background: rgba(224, 41, 58, 0.16);
+}
+
+.pt-planner-ar-btn svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+/* ---------- Night AR overlay ----------
+   Structure/behaviour (fixed reticle, radar-tiered dot/arrow, proximity
+   thresholds) ported from DSO Search's AR camera view for consistency
+   between the two tools; colours use this app's own pt- tokens rather than
+   DSO Search's palette, per the toolbox's existing re-skinning convention. */
+
+.pt-ar-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 500;
+}
+
+.pt-ar-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.85;
+}
+
+.pt-ar-hud-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pt-space-3);
+  padding: var(--pt-space-4);
+  background: linear-gradient(to bottom, rgba(10, 14, 20, 0.9), transparent);
+}
+
+.pt-ar-back {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+  flex: 0 0 auto;
+  background: rgba(10, 14, 20, 0.8);
+  border: 1px solid var(--pt-accent);
+  color: var(--pt-accent);
+  padding: 8px 14px;
+  border-radius: var(--pt-radius-sm);
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 13px;
+}
+
+.pt-ar-back svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pt-ar-title {
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pt-text);
+  font-size: 14px;
+}
+
+.pt-ar-hud-spacer {
+  flex: 0 0 auto;
+  width: 70px;
+}
+
+.pt-ar-reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 60px;
+  background: rgba(224, 41, 58, 0.55);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.pt-ar-reticle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60px;
+  height: 2px;
+  background: rgba(224, 41, 58, 0.55);
+  transform: translate(-50%, -50%);
+}
+
+.pt-ar-target-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--pt-accent);
+  box-shadow: 0 0 12px 4px var(--pt-accent-glow);
+  transform: translate(-50%, -50%);
+  display: none;
+}
+
+.pt-ar-target-dot--close {
+  background: #4caf50;
+  box-shadow: 0 0 12px 4px rgba(76, 175, 80, 0.6);
+}
+
+.pt-ar-arrow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 48px;
+  height: 48px;
+  color: var(--pt-accent);
+  display: none;
+}
+
+.pt-ar-arrow svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 6px var(--pt-accent-glow));
+}
+
+.pt-ar-status {
+  position: absolute;
+  bottom: var(--pt-space-6);
+  left: var(--pt-space-4);
+  right: var(--pt-space-4);
+  text-align: center;
+  color: var(--pt-text);
+  font-size: 14px;
+  line-height: 1.4;
+  background: rgba(10, 14, 20, 0.75);
+  padding: var(--pt-space-3);
+  border-radius: var(--pt-radius-sm);
+}
+
+.pt-ar-status:empty {
+  display: none;
+}
