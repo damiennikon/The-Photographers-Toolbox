@@ -26,30 +26,44 @@ function shortName(display) {
 }
 
 export async function reverseGeocode(lat, lon) {
-  const url = `${NOMINATIM_BASE}/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10`;
+  const url = `${NOMINATIM_BASE}/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
   const data = await rateLimitedFetch(url);
   if (!data || !data.display_name) throw new Error("No reverse geocode result");
-  return { name: shortName(data.display_name), lat: Number(data.lat), lon: Number(data.lon) };
+  return {
+    name: shortName(data.display_name),
+    lat: Number(data.lat),
+    lon: Number(data.lon),
+    countryCode: data.address?.country_code ?? null,
+    countryName: data.address?.country ?? null,
+  };
 }
 
-export async function searchLocations(query) {
+// `countryCode` (ISO 3166-1 alpha-2, e.g. "au") scopes results to that
+// country via Nominatim's countrycodes param — omit/null for worldwide.
+export async function searchLocations(query, countryCode) {
   if (!query || query.trim().length < 3) return [];
-  const url = `${NOMINATIM_BASE}/search?format=jsonv2&q=${encodeURIComponent(query)}&limit=5`;
+  const params = new URLSearchParams({ format: "jsonv2", q: query, limit: "5", addressdetails: "1" });
+  if (countryCode) params.set("countrycodes", countryCode);
+  const url = `${NOMINATIM_BASE}/search?${params.toString()}`;
   const data = await rateLimitedFetch(url);
   return (Array.isArray(data) ? data : []).map((r) => ({
     name: shortName(r.display_name),
     lat: Number(r.lat),
     lon: Number(r.lon),
+    countryCode: r.address?.country_code ?? null,
+    countryName: r.address?.country ?? null,
   }));
 }
 
 // Debounced typeahead wrapper: `onResults(results)` fires after the pause,
-// with in-flight results from a stale query ignored.
+// with in-flight results from a stale query ignored. `countryCode` is read
+// fresh on each call (not captured at creation) so a region change or the
+// worldwide toggle takes effect on the very next keystroke.
 export function createLocationSearch(onResults, delayMs = 700) {
   let timer = null;
   let requestId = 0;
 
-  return function search(query) {
+  return function search(query, countryCode) {
     clearTimeout(timer);
     if (!query || query.trim().length < 3) {
       onResults([]);
@@ -58,7 +72,7 @@ export function createLocationSearch(onResults, delayMs = 700) {
     const id = ++requestId;
     timer = setTimeout(async () => {
       try {
-        const results = await searchLocations(query);
+        const results = await searchLocations(query, countryCode);
         if (id === requestId) onResults(results);
       } catch {
         if (id === requestId) onResults([]);
