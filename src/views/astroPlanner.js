@@ -1,7 +1,14 @@
 import { icon } from "../icons.js";
 import { getTool } from "../tools.config.js";
 import { navigate } from "../router.js";
-import { getMilkyWayIntel, getMoonIllumination, getDarknessWindow, getMoonInfo } from "../lib/astroCalc.js";
+import {
+  getMilkyWayVisibility,
+  milkyWayCompassDirection,
+  MILKY_WAY_MIN_ALTITUDE,
+  getMoonIllumination,
+  getDarknessWindow,
+  getMoonInfo,
+} from "../lib/astroCalc.js";
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
 
 // Matches the default location used by the toolbox's other tools.
@@ -36,7 +43,7 @@ function computeDashboard(state) {
   const darkness = getDarknessWindow(date, lat, lon);
   const moon = getMoonInfo(date, lat, lon, darkness.duskStart, darkness.dawnEnd);
   const illumination = getMoonIllumination(date);
-  const milkyWay = getMilkyWayIntel(date);
+  const milkyWay = getMilkyWayVisibility(darkness, lat, lon);
   return { darkness, moon, illumination, milkyWay };
 }
 
@@ -102,20 +109,41 @@ function moonCardMarkup(darkness, moon, illumination) {
 }
 
 function milkyWayCardMarkup(milkyWay) {
+  if (!milkyWay.visible) {
+    return `
+      <section class="pt-card">
+        <div class="pt-card-head">${icon("telescope", "pt-card-icon")}<h3>Milky Way Core</h3></div>
+        <p class="pt-planner-empty">Not visible tonight — the core stays below ${MILKY_WAY_MIN_ALTITUDE}° all night at this date/location.</p>
+      </section>`;
+  }
+
+  const startDir = milkyWayCompassDirection(milkyWay.startAzimuth);
+  const endDir = milkyWayCompassDirection(milkyWay.endAzimuth);
+  const directionNote = startDir && endDir ? `<p class="pt-planner-note">${startDir} → ${endDir}</p>` : "";
+
+  if (milkyWay.allNight) {
+    return `
+      <section class="pt-card">
+        <div class="pt-card-head">${icon("telescope", "pt-card-icon")}<h3>Milky Way Core</h3></div>
+        <div class="pt-planner-flag pt-planner-flag--good">Visible all night — above ${MILKY_WAY_MIN_ALTITUDE}° for the entire dark window.</div>
+        ${directionNote}
+      </section>`;
+  }
+
   return `
     <section class="pt-card">
       <div class="pt-card-head">${icon("telescope", "pt-card-icon")}<h3>Milky Way Core</h3></div>
       <div class="pt-planner-stat-row">
         <div class="pt-planner-stat">
-          <span class="pt-planner-stat-label">Rises</span>
-          <span class="pt-planner-stat-value">${milkyWay.riseTime}</span>
+          <span class="pt-planner-stat-label">Visible from</span>
+          <span class="pt-planner-stat-value">${formatTime(milkyWay.start)}</span>
         </div>
         <div class="pt-planner-stat">
-          <span class="pt-planner-stat-label">Best window</span>
-          <span class="pt-planner-stat-value pt-planner-stat-value--sm">${milkyWay.bestWindow}</span>
+          <span class="pt-planner-stat-label">Visible until</span>
+          <span class="pt-planner-stat-value">${formatTime(milkyWay.end)}</span>
         </div>
       </div>
-      <p class="pt-planner-note">Rough monthly estimate, not date-precise. Direction isn't shown — it moves through the night and needs a proper ephemeris calculation to state accurately, which is out of scope for this pass.</p>
+      ${directionNote}
     </section>`;
 }
 
