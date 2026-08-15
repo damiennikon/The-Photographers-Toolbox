@@ -102,10 +102,27 @@ export function getMoonInfo(date, lat, lon, duskStart, dawnEnd) {
 const GALACTIC_CORE_RA = 17.7611; // hours
 const GALACTIC_CORE_DEC = -29.0078; // degrees
 
-// Below this altitude, horizon obstructions and atmospheric extinction make
-// the core impractical to shoot even though it's technically above 0°.
+// Was 10° originally, as a deliberate "impractical to shoot below this"
+// buffer — but that made the window end ~52 min earlier than PhotoPills for
+// the same night (18:44–02:16 here vs PhotoPills' 18:45–03:08). Checked
+// AstroWeather's own Milky Way calc (src/weatherWorker.js) before touching
+// this: it uses the identical 10° threshold and astronomy-engine call, so
+// its closer-looking ~3:00am display isn't evidence of a better threshold —
+// it's a rounding artifact of only sampling once per hour, which reports
+// the *next* whole hour after a threshold crossing (a true ~02:16 crossing
+// shows as "sets 03:00"). That ruled out "copy AstroWeather's threshold" as
+// the fix, since it's already the same value.
+// What actually explains the gap: `Horizon(..., 'normal')` already applies
+// atmospheric refraction, so 0° here means "the core's refracted position
+// crosses the true horizon" — the standard rise/set definition, and the one
+// PhotoPills appears to use. Checked the core's altitude at both candidate
+// end times for the same night: 10.1° at 02:16 (confirms that's exactly
+// where the old threshold cut it off), and still +0.5° at PhotoPills'
+// 03:08 — positive, just below the old 10° buffer. Recomputing with this
+// threshold at 0° lands the crossing at 03:11, ~3 min from PhotoPills — the
+// old 10° buffer, not a refraction or timezone bug, was the cause.
 // Exported so a specific site with an unusually low/high horizon can tune it.
-export const MILKY_WAY_MIN_ALTITUDE = 10;
+export const MILKY_WAY_MIN_ALTITUDE = 0;
 
 const COMPASS_POINTS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
 
