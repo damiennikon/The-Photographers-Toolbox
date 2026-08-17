@@ -390,12 +390,19 @@
 /* Milky Way band texture overlay. Position/rotation are set inline in JS
    per-frame (they depend on live device orientation + sky angle); width and
    aspect-ratio stay fixed here so the JS can read a stable rendered size
-   without waiting on the image to load. */
+   without waiting on the image to load.
+
+   --pt-ar-band-scale-vmin is the one knob for the overlay's apparent size —
+   there's no "correct" value since exact angular-size-to-camera-FOV mapping
+   is out of scope (see nightAR.js BAND_ASSUMED_FOV_DEG); tune this by eye
+   against a real phone screen held up to the sky. 450 ≈ 3x the original
+   150vmin first pass, which field-testing found too small/thin. */
 .pt-ar-band {
+  --pt-ar-band-scale-vmin: 450;
   position: absolute;
   top: 0;
   left: 0;
-  width: 150vmin;
+  width: calc(var(--pt-ar-band-scale-vmin) * 1vmin);
   max-width: none; /* override the global `img { max-width: 100% }` reset — this
     is meant to overhang the viewport in portrait orientation (the primary
     real-world case), not be clamped to it */
