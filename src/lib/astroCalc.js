@@ -215,3 +215,80 @@ export function getMilkyWayVisibility(darkness, lat, lon) {
 export function milkyWayCompassDirection(azimuthDeg) {
   return azimuthDeg == null ? null : compassDirection(azimuthDeg);
 }
+
+// Standard IAU J2000 galactic north pole — used only to work out the
+// galactic plane's *orientation* on screen (for the Night AR band overlay),
+// not the core's own position, which stays pinned to the Sgr A* radio
+// coordinates above. The pole is by definition perpendicular to the plane,
+// so rotating the core's direction vector around this axis traces the
+// galactic equator.
+const GALACTIC_POLE_RA = 12.8524; // hours (192.85948°)
+const GALACTIC_POLE_DEC = 27.1283; // degrees
+const GALACTIC_PLANE_OFFSET_DEG = 10;
+
+function toUnitVector(raHours, decDeg) {
+  const raRad = ((raHours * 15) / 180) * Math.PI;
+  const decRad = (decDeg / 180) * Math.PI;
+  return {
+    x: Math.cos(decRad) * Math.cos(raRad),
+    y: Math.cos(decRad) * Math.sin(raRad),
+    z: Math.sin(decRad),
+  };
+}
+
+function fromUnitVector(v) {
+  const decDeg = (Math.asin(v.z) * 180) / Math.PI;
+  const raDeg = ((Math.atan2(v.y, v.x) * 180) / Math.PI + 360) % 360;
+  return { raHours: raDeg / 15, decDeg };
+}
+
+// Rodrigues' rotation formula: rotates unit vector `v` by `angleRad` around
+// unit axis `k`.
+function rotateAroundAxis(v, k, angleRad) {
+  const cos = Math.cos(angleRad);
+  const sin = Math.sin(angleRad);
+  const kDotV = k.x * v.x + k.y * v.y + k.z * v.z;
+  const kCrossV = { x: k.y * v.z - k.z * v.y, y: k.z * v.x - k.x * v.z, z: k.x * v.y - k.y * v.x };
+  return {
+    x: v.x * cos + kCrossV.x * sin + k.x * kDotV * (1 - cos),
+    y: v.y * cos + kCrossV.y * sin + k.y * kDotV * (1 - cos),
+    z: v.z * cos + kCrossV.z * sin + k.z * kDotV * (1 - cos),
+  };
+}
+
+// A fixed point GALACTIC_PLANE_OFFSET_DEG of galactic longitude away from
+// the core (latitude 0, same as the core by definition) — computed once at
+// module load since it doesn't depend on date/location, only recomputed
+// (converted to alt/az) per observation below.
+const planeOffsetPoint = fromUnitVector(
+  rotateAroundAxis(
+    toUnitVector(GALACTIC_CORE_RA, GALACTIC_CORE_DEC),
+    toUnitVector(GALACTIC_POLE_RA, GALACTIC_POLE_DEC),
+    (GALACTIC_PLANE_OFFSET_DEG * Math.PI) / 180
+  )
+);
+
+function planeOffsetHorizon(date, observer) {
+  return Horizon(date, observer, planeOffsetPoint.raHours, planeOffsetPoint.decDeg, "normal");
+}
+
+// Tilt of the galactic plane on screen, right now, at this location: the
+// angle (screen/CSS convention — clockwise-positive from local horizontal)
+// of the line through the core and the second point defined above, both
+// projected to alt/az for the same date/observer. Used by Night AR to
+// rotate the Milky Way band texture to match the sky; recomputed on the
+// same cadence as the core position itself (see EPHEMERIS_REFRESH_MS in
+// nightAR.js), since the sky's rotation changes this continuously.
+//
+// Screen mapping: azimuth increases to the right (like screen x), altitude
+// increases upward (opposite of screen y, which increases downward) — same
+// convention nightAR.js already uses for deltaAz/deltaAlt.
+export function getGalacticPlaneTiltDeg(date, lat, lon) {
+  const observer = new Observer(lat, lon, 0);
+  const core = coreHorizon(date, observer);
+  const offset = planeOffsetHorizon(date, observer);
+
+  const dAz = ((offset.azimuth - core.azimuth + 540) % 360) - 180;
+  const dAlt = offset.altitude - core.altitude;
+  return (Math.atan2(-dAlt, dAz) * 180) / Math.PI;
+}
