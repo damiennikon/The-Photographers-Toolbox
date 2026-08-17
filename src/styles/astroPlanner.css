@@ -387,6 +387,24 @@
   opacity: 0.85;
 }
 
+/* Milky Way band texture overlay. Position/rotation are set inline in JS
+   per-frame (they depend on live device orientation + sky angle); width and
+   aspect-ratio stay fixed here so the JS can read a stable rendered size
+   without waiting on the image to load. */
+.pt-ar-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 150vmin;
+  max-width: none; /* override the global `img { max-width: 100% }` reset — this
+    is meant to overhang the viewport in portrait orientation (the primary
+    real-world case), not be clamped to it */
+  aspect-ratio: 1536 / 1024;
+  opacity: 0.7;
+  pointer-events: none;
+  display: none;
+}
+
 .pt-ar-hud-top {
   position: absolute;
   top: 0;
@@ -429,9 +447,22 @@
   font-size: 14px;
 }
 
-.pt-ar-hud-spacer {
+.pt-ar-band-toggle {
   flex: 0 0 auto;
-  width: 70px;
+  background: rgba(10, 14, 20, 0.8);
+  border: 1px solid var(--pt-accent);
+  color: var(--pt-accent);
+  padding: 8px 14px;
+  border-radius: var(--pt-radius-sm);
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 13px;
+}
+
+.pt-ar-band-toggle--off {
+  border-color: rgba(224, 41, 58, 0.35);
+  color: rgba(224, 41, 58, 0.5);
 }
 
 .pt-ar-reticle {
