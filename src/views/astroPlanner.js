@@ -10,7 +10,7 @@ import {
   getMoonInfo,
 } from "../lib/astroCalc.js";
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
-import { openNightAR } from "../components/nightAR.js";
+import { openNightAR, openPolarAlign } from "../components/nightAR.js";
 
 // Matches the default location used by the toolbox's other tools.
 const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185, countryCode: "au", countryName: "Australia" };
@@ -198,6 +198,25 @@ function milkyWayCardMarkup(milkyWay) {
     </section>`;
 }
 
+// Like the Night AR button, this reflects the live current position rather
+// than the selected planning date — the celestial pole doesn't rise or set,
+// so unlike the Milky Way core there's no "visible tonight" window to gate
+// this behind; it's just always there.
+function polarAlignCardMarkup(state) {
+  const hemisphere = state.location.lat >= 0 ? "N" : "S";
+  const poleAbbr = hemisphere === "N" ? "NCP" : "SCP";
+  const poleName = hemisphere === "N" ? "North Celestial Pole" : "South Celestial Pole";
+  return `
+    <section class="pt-card">
+      <div class="pt-card-head">${icon("compass", "pt-card-icon")}<h3>Polar Align</h3></div>
+      <p class="pt-planner-note">Points your camera toward the ${poleName} for aligning an equatorial mount — its position in the sky is fixed, so this works any time, any night.</p>
+      <button class="pt-planner-ar-btn" data-open-polar-align type="button">
+        ${icon("compass")}
+        <span>Polar Align — locate the ${poleAbbr}</span>
+      </button>
+    </section>`;
+}
+
 function astroWeatherCardMarkup() {
   return `
     <a href="#/tool/astro-weather" class="pt-card pt-card--link">
@@ -313,6 +332,7 @@ export function renderAstroPlanner(container) {
             ${darknessCardMarkup(darkness)}
             ${moonCardMarkup(darkness, moon, illumination)}
             ${milkyWayCardMarkup(milkyWay)}
+            ${polarAlignCardMarkup(state)}
             ${astroWeatherCardMarkup()}
           </div>
         </div>
@@ -386,6 +406,10 @@ export function renderAstroPlanner(container) {
 
     container.querySelector("[data-open-night-ar]").addEventListener("click", () => {
       openNightAR(state.location);
+    });
+
+    container.querySelector("[data-open-polar-align]").addEventListener("click", () => {
+      openPolarAlign(state.location);
     });
 
     bindResultClicks();

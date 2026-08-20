@@ -292,3 +292,27 @@ export function getGalacticPlaneTiltDeg(date, lat, lon) {
   const dAlt = offset.altitude - core.altitude;
   return (Math.atan2(-dAlt, dAz) * 180) / Math.PI;
 }
+
+// The celestial pole for Polar Align — whichever pole (dec = +90 for the
+// northern hemisphere, -90 for the southern) is on the observer's side of
+// the sky, matching DSO Search's dsoDatabase "NCP"/"SCP" entries
+// (github.com/damiennikon/DSO-Search database.js: { id: "NCP", ra: 0,
+// dec: 90 } / { id: "SCP", ra: 0, dec: -90 }) rather than re-deriving new
+// coordinates. RA is irrelevant at dec = ±90 (every RA gives an identical
+// alt/az there) — kept at 0 to match that source rather than for any
+// mathematical reason.
+//
+// Unlike the galactic core, the pole doesn't move in alt/az over the course
+// of a night — that's what makes it useful for polar alignment. Altitude
+// always equals the observer's latitude (its magnitude); azimuth is always
+// true north (0°) from the northern hemisphere or true south (180°) from
+// the southern. Both are exact, refraction aside, for any date/time — which
+// also makes this trivial to sanity-check (see astroCalc.pole.test in the
+// PR description): compute it at several different times and confirm it
+// doesn't move, then confirm altitude ≈ |lat| and azimuth ≈ 0°/180°.
+export function getCelestialPoleAltAz(date, lat, lon) {
+  const hemisphere = lat >= 0 ? "N" : "S";
+  const dec = hemisphere === "N" ? 90 : -90;
+  const altAz = Horizon(date, new Observer(lat, lon, 0), 0, dec, "normal");
+  return { ...altAz, hemisphere };
+}

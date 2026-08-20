@@ -1,10 +1,19 @@
-// "Night AR" — camera overlay pointing toward the Milky Way core's live
-// position. Radar-style dot/arrow logic and proximity thresholds (0.8°/5°)
-// are ported from DSO Search's `handleAR` (github.com/damiennikon/DSO-Search
-// app.js) rather than re-derived — reuses the same field-tested approach,
-// adapted to this app's mount/render pattern (see placeholderModal.js).
+// Shared AR-pointer overlay — camera feed + compass-driven dot/arrow guide
+// toward a live alt/az target. Two entry points share this one instance:
+// Night AR (the Milky Way core, plus the band texture) and Polar Align (the
+// celestial pole). Radar-style dot/arrow logic and proximity thresholds
+// (0.8°/5°) are ported from DSO Search's `handleAR` (github.com/damiennikon/
+// DSO-Search app.js) rather than re-derived — reuses the same field-tested
+// approach, adapted to this app's mount/render pattern (see
+// placeholderModal.js). Polar Align is the same port applied to DSO
+// Search's NCP/SCP: there's no separate "Refine" mechanism there — NCP/SCP
+// are just two catalog entries (ra: 0, dec: ±90, database.js) fed through
+// this exact same generic RA/Dec-target AR routine, so this file's existing
+// generality already covers it once the target and a couple of labels are
+// parameterized, rather than needing a second copy of the camera/
+// orientation/reticle scaffolding.
 import { icon } from "../icons.js";
-import { getGalacticCoreAltAz, getGalacticPlaneTiltDeg } from "../lib/astroCalc.js";
+import { getGalacticCoreAltAz, getGalacticPlaneTiltDeg, getCelestialPoleAltAz } from "../lib/astroCalc.js";
 import {
   smoothAngle,
   headingFromEvent,
@@ -13,6 +22,32 @@ import {
   requestOrientationPermission,
   startOrientationListener,
 } from "../lib/deviceOrientation.js";
+
+// Static config per mode; Polar Align's title is finished off with the
+// resolved hemisphere at open time (see openPolarAlign) since it depends on
+// the observer's location, not just the mode.
+const AR_MODES = {
+  milkyway: {
+    title: "Milky Way Core",
+    backLabel: "Close Night AR",
+    belowHorizonText: "Core is below the horizon right now.",
+    cameraDeniedText: "Camera access denied — Night AR needs your camera to work. Tap Back and try again.",
+    orientationDeniedText:
+      "Motion & orientation access denied — Night AR needs this to point you toward the core. Tap Back, then allow motion access when your browser asks.",
+    showBand: true,
+    getTarget: getGalacticCoreAltAz,
+  },
+  polar: {
+    title: "Polar Align",
+    backLabel: "Close Polar Align",
+    belowHorizonText: "The celestial pole is below the horizon at this location — polar alignment isn't possible from here.",
+    cameraDeniedText: "Camera access denied — Polar Align needs your camera to work. Tap Back and try again.",
+    orientationDeniedText:
+      "Motion & orientation access denied — Polar Align needs this to point you toward the pole. Tap Back, then allow motion access when your browser asks.",
+    showBand: false,
+    getTarget: getCelestialPoleAltAz,
+  },
+};
 
 // Recomputing the core's alt/az every frame is unnecessary — the sky barely
 // moves over a couple of seconds, only the device orientation reading needs
@@ -52,6 +87,7 @@ let targetAltAz = { altitude: -90, azimuth: 0 };
 let planeTiltDeg = 0;
 let location = null;
 let bandEnabled = true;
+let mode = AR_MODES.milkyway;
 
 function render() {
   return `
@@ -62,7 +98,7 @@ function render() {
         <button class="pt-ar-back" data-ar-back type="button" aria-label="Close Night AR">
           ${icon("arrowLeft")}<span>Back</span>
         </button>
-        <div class="pt-ar-title">Milky Way Core</div>
+        <div class="pt-ar-title" data-ar-title>Milky Way Core</div>
         <button class="pt-ar-band-toggle" data-ar-band-toggle type="button" aria-pressed="true">Band</button>
       </div>
       <div class="pt-ar-reticle"></div>
@@ -97,8 +133,8 @@ function setStatus(text) {
 function updateTargetPosition() {
   if (!location) return;
   const now = new Date();
-  targetAltAz = getGalacticCoreAltAz(now, location.lat, location.lon);
-  planeTiltDeg = getGalacticPlaneTiltDeg(now, location.lat, location.lon);
+  targetAltAz = mode.getTarget(now, location.lat, location.lon);
+  if (mode.showBand) planeTiltDeg = getGalacticPlaneTiltDeg(now, location.lat, location.lon);
 }
 
 // Cached rendered size of the band image (its CSS width is a fixed vmin
@@ -164,7 +200,7 @@ function handleOrientation(event) {
     dot.style.display = "none";
     arrow.style.display = "none";
     band.style.display = "none";
-    setStatus("Core is below the horizon right now.");
+    setStatus(mode.belowHorizonText);
     return;
   }
   setStatus("");
@@ -173,7 +209,7 @@ function handleOrientation(event) {
   const deltaAlt = targetAltAz.altitude - pitch;
   const distance = Math.hypot(deltaAz, deltaAlt);
 
-  updateBandPosition(deltaAz, deltaAlt);
+  if (mode.showBand) updateBandPosition(deltaAz, deltaAlt);
 
   if (distance < NEAR_THRESHOLD_DEG) {
     arrow.style.display = "none";
@@ -211,21 +247,30 @@ function stopCamera() {
   if (video) video.srcObject = null;
 }
 
-export async function openNightAR(currentLocation) {
+async function openAR(currentLocation, arMode) {
   ensureMounted();
   location = currentLocation;
+  mode = arMode;
   smoothedHeading = null;
   declination = DECLINATION_FALLBACK;
+
+  root.querySelector("[data-ar-title]").textContent = mode.title;
+  root.querySelector("[data-ar-back]").setAttribute("aria-label", mode.backLabel);
+  root.querySelector("[data-ar-band-toggle]").style.display = mode.showBand ? "" : "none";
 
   const overlay = root.querySelector("[data-ar-overlay]");
   const dot = root.querySelector("[data-ar-dot]");
   const arrow = root.querySelector("[data-ar-arrow]");
+  const band = root.querySelector("[data-ar-band]");
   dot.style.display = "none";
   arrow.style.display = "none";
+  band.style.display = "none";
   overlay.style.display = "block";
-  bandDims = null;
-  measureBand();
-  window.addEventListener("resize", measureBand);
+  if (mode.showBand) {
+    bandDims = null;
+    measureBand();
+    window.addEventListener("resize", measureBand);
+  }
   setStatus("Requesting camera…");
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -236,7 +281,7 @@ export async function openNightAR(currentLocation) {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
   } catch {
-    setStatus("Camera access denied — Night AR needs your camera to work. Tap Back and try again.");
+    setStatus(mode.cameraDeniedText);
     return;
   }
   root.querySelector("[data-ar-video]").srcObject = stream;
@@ -249,7 +294,7 @@ export async function openNightAR(currentLocation) {
     permission = "denied";
   }
   if (permission !== "granted") {
-    setStatus("Motion & orientation access denied — Night AR needs this to point you toward the core. Tap Back, then allow motion access when your browser asks.");
+    setStatus(mode.orientationDeniedText);
     stopCamera();
     return;
   }
@@ -263,6 +308,22 @@ export async function openNightAR(currentLocation) {
   ephemerisTimer = setInterval(updateTargetPosition, EPHEMERIS_REFRESH_MS);
   stopOrientation = startOrientationListener(handleOrientation);
   requestWakeLockSafe();
+}
+
+export function openNightAR(currentLocation) {
+  return openAR(currentLocation, AR_MODES.milkyway);
+}
+
+// Same AR routine as Night AR, pointed at the celestial pole instead of the
+// core — see getCelestialPoleAltAz for why altitude/azimuth are safe to
+// treat as fixed here in a way they aren't for the core. Hemisphere is
+// resolved from the location up front so the title reads "NCP" or "SCP"
+// rather than a generic "the pole", matching DSO Search's explicit
+// NCP/SCP-as-separate-targets framing.
+export function openPolarAlign(currentLocation) {
+  const hemisphere = currentLocation.lat >= 0 ? "N" : "S";
+  const poleName = hemisphere === "N" ? "North Celestial Pole (NCP)" : "South Celestial Pole (SCP)";
+  return openAR(currentLocation, { ...AR_MODES.polar, title: `Polar Align — ${poleName}` });
 }
 
 export function closeNightAR() {
