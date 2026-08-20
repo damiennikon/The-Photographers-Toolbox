@@ -63,6 +63,10 @@ export const icons = {
   ),
 
   arrowUp: wrap('<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>'),
+
+  compass: wrap(
+    '<circle cx="12" cy="12" r="9"/><polygon points="14.5 9.5 12 15 9.5 14.5 12 9"/>'
+  ),
 };
 
 export function icon(name, extraClass = "") {
