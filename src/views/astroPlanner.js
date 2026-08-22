@@ -8,9 +8,12 @@ import {
   getMoonIllumination,
   getDarknessWindow,
   getMoonInfo,
+  getTargetPeakAltitude,
+  DSO_MIN_ALTITUDE,
 } from "../lib/astroCalc.js";
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
 import { openNightAR, openPolarAlign } from "../components/nightAR.js";
+import { DSO_DATABASE } from "../../database/database.js";
 
 // Matches the default location used by the toolbox's other tools.
 const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185, countryCode: "au", countryName: "Australia" };
@@ -40,6 +43,15 @@ function formatDuration(start, end) {
   return h === 0 ? `${m}m` : `${h}h ${m}m`;
 }
 
+// "Alignment" catalog entries (NCP/SCP) are consumed by Polar Align, not
+// this list — they're fixed reference points, not shoot targets.
+function getDsoTargets(darkness, lat, lon) {
+  return DSO_DATABASE.filter((entry) => entry.type !== "Alignment")
+    .map((entry) => ({ ...entry, ...getTargetPeakAltitude(darkness, lat, lon, entry.ra, entry.dec) }))
+    .filter((entry) => entry.peakAltitude !== null && entry.peakAltitude > DSO_MIN_ALTITUDE)
+    .sort((a, b) => b.peakAltitude - a.peakAltitude);
+}
+
 function computeDashboard(state) {
   const date = parseDateInput(state.dateValue);
   const { lat, lon } = state.location;
@@ -47,7 +59,8 @@ function computeDashboard(state) {
   const moon = getMoonInfo(date, lat, lon, darkness.duskStart, darkness.dawnEnd);
   const illumination = getMoonIllumination(date);
   const milkyWay = getMilkyWayVisibility(darkness, lat, lon);
-  return { darkness, moon, illumination, milkyWay };
+  const dsoTargets = getDsoTargets(darkness, lat, lon);
+  return { darkness, moon, illumination, milkyWay, dsoTargets };
 }
 
 // Tier boundaries and severity wording mirror AstroWeather's own moon-impact
@@ -202,6 +215,48 @@ function milkyWayCardMarkup(milkyWay) {
 // than the selected planning date — the celestial pole doesn't rise or set,
 // so unlike the Milky Way core there's no "visible tonight" window to gate
 // this behind; it's just always there.
+const DSO_TARGETS_COLLAPSED_COUNT = 8;
+
+function dsoTargetRowMarkup(target) {
+  return `
+    <li class="pt-planner-dso-row">
+      <div class="pt-planner-dso-row-main">
+        <span class="pt-planner-dso-name">${target.name}</span>
+        <span class="pt-planner-dso-type">${target.type}</span>
+      </div>
+      <div class="pt-planner-dso-row-stats">
+        <span class="pt-planner-dso-alt">${Math.round(target.peakAltitude)}°</span>
+        <span class="pt-planner-dso-time">${formatTime(target.peakTime)}</span>
+      </div>
+    </li>`;
+}
+
+function dsoTargetsCardMarkup(dsoTargets, expanded) {
+  if (!dsoTargets.length) {
+    return `
+      <section class="pt-card">
+        <div class="pt-card-head">${icon("aperture", "pt-card-icon")}<h3>Tonight's Best DSO Targets</h3></div>
+        <p class="pt-planner-empty">Nothing clears ${DSO_MIN_ALTITUDE}° during the dark window tonight — check a different date or location.</p>
+      </section>`;
+  }
+
+  const visible = expanded ? dsoTargets : dsoTargets.slice(0, DSO_TARGETS_COLLAPSED_COUNT);
+  const hasMore = dsoTargets.length > DSO_TARGETS_COLLAPSED_COUNT;
+  const toggle = hasMore
+    ? `<button class="pt-planner-dso-toggle" data-toggle-dso-expand type="button">${
+        expanded ? "Show fewer" : `Show all ${dsoTargets.length} targets`
+      }</button>`
+    : "";
+
+  return `
+    <section class="pt-card">
+      <div class="pt-card-head">${icon("aperture", "pt-card-icon")}<h3>Tonight's Best DSO Targets</h3></div>
+      <p class="pt-planner-note">Above ${DSO_MIN_ALTITUDE}° at some point during the dark window, sorted by peak altitude.</p>
+      <ul class="pt-planner-dso-list">${visible.map(dsoTargetRowMarkup).join("")}</ul>
+      ${toggle}
+    </section>`;
+}
+
 function polarAlignCardMarkup(state) {
   const hemisphere = state.location.lat >= 0 ? "N" : "S";
   const poleAbbr = hemisphere === "N" ? "NCP" : "SCP";
@@ -301,6 +356,7 @@ export function renderAstroPlanner(container) {
     searchResults: [],
     searchLoading: false,
     searchError: false,
+    dsoExpanded: false,
   };
 
   const searchDebounced = createLocationSearch((results) => {
@@ -311,7 +367,7 @@ export function renderAstroPlanner(container) {
   });
 
   function render() {
-    const { darkness, moon, illumination, milkyWay } = computeDashboard(state);
+    const { darkness, moon, illumination, milkyWay, dsoTargets } = computeDashboard(state);
 
     container.innerHTML = `
       <div class="pt-tool-view">
@@ -332,6 +388,7 @@ export function renderAstroPlanner(container) {
             ${darknessCardMarkup(darkness)}
             ${moonCardMarkup(darkness, moon, illumination)}
             ${milkyWayCardMarkup(milkyWay)}
+            ${dsoTargetsCardMarkup(dsoTargets, state.dsoExpanded)}
             ${polarAlignCardMarkup(state)}
             ${astroWeatherCardMarkup()}
           </div>
@@ -411,6 +468,14 @@ export function renderAstroPlanner(container) {
     container.querySelector("[data-open-polar-align]").addEventListener("click", () => {
       openPolarAlign(state.location);
     });
+
+    const dsoToggle = container.querySelector("[data-toggle-dso-expand]");
+    if (dsoToggle) {
+      dsoToggle.addEventListener("click", () => {
+        state.dsoExpanded = !state.dsoExpanded;
+        render();
+      });
+    }
 
     bindResultClicks();
   }

@@ -130,8 +130,30 @@ function compassDirection(azimuthDeg) {
   return COMPASS_POINTS[Math.round(azimuthDeg / 22.5) % 16];
 }
 
+// Generic alt/az lookup for any RA/Dec — the piece `coreHorizon()` used to
+// do only for the galactic core's fixed coordinates. Kept separate from
+// `coreHorizon()` (rather than inlined) so callers that need an arbitrary
+// target's position, like `getTargetPeakAltitude()` below, don't have to
+// duplicate the `Horizon(..., "normal")` call.
+function horizonFor(date, observer, raHours, decDeg) {
+  return Horizon(date, observer, raHours, decDeg, "normal");
+}
+
 function coreHorizon(date, observer) {
-  return Horizon(date, observer, GALACTIC_CORE_RA, GALACTIC_CORE_DEC, "normal");
+  return horizonFor(date, observer, GALACTIC_CORE_RA, GALACTIC_CORE_DEC);
+}
+
+// Altitude at each 5-min tick across [startMs, endMs] (inclusive of both
+// ends) for an arbitrary RA/Dec — the sampling loop `getMilkyWayVisibility()`
+// used to run only for the galactic core, now shared with
+// `getTargetPeakAltitude()` so both walk the darkness window the same way.
+function sampleAltitudeWindow(startMs, endMs, stepMs, observer, raHours, decDeg) {
+  const samples = [];
+  for (let t = startMs; t < endMs; t += stepMs) {
+    samples.push({ t, alt: horizonFor(new Date(t), observer, raHours, decDeg).altitude });
+  }
+  samples.push({ t: endMs, alt: horizonFor(new Date(endMs), observer, raHours, decDeg).altitude });
+  return samples;
 }
 
 // Galactic core's altitude/azimuth right now (or at any instant) for a given
@@ -173,11 +195,7 @@ export function getMilkyWayVisibility(darkness, lat, lon) {
   const endMs = darkness.dawnEnd.getTime();
   const stepMs = 5 * 60 * 1000;
 
-  const samples = [];
-  for (let t = startMs; t < endMs; t += stepMs) {
-    samples.push({ t, alt: coreHorizon(new Date(t), observer).altitude });
-  }
-  samples.push({ t: endMs, alt: coreHorizon(new Date(endMs), observer).altitude });
+  const samples = sampleAltitudeWindow(startMs, endMs, stepMs, observer, GALACTIC_CORE_RA, GALACTIC_CORE_DEC);
 
   const above = samples.map((s) => s.alt > MILKY_WAY_MIN_ALTITUDE);
 
@@ -214,6 +232,37 @@ export function getMilkyWayVisibility(darkness, lat, lon) {
 
 export function milkyWayCompassDirection(azimuthDeg) {
   return azimuthDeg == null ? null : compassDirection(azimuthDeg);
+}
+
+// Below this, a DSO catalog target is technically above the horizon but not
+// worth planning a night around — atmospheric extinction and the thicker
+// light-pollution band near the horizon both bite hard by this point.
+// Exported so a specific site can tune it, same pattern as
+// MILKY_WAY_MIN_ALTITUDE above.
+export const DSO_MIN_ALTITUDE = 25;
+
+// How high a given RA/Dec target gets during the darkness window, and when —
+// used to rank DSO catalog entries for "tonight's best targets". Same 5-min
+// sampling as getMilkyWayVisibility, but callers only need the peak, not a
+// precise rise/set crossing, so this skips refineCrossing entirely.
+export function getTargetPeakAltitude(darkness, lat, lon, raHours, decDeg) {
+  if (!darkness.valid) {
+    return { peakAltitude: null, peakTime: null };
+  }
+
+  const observer = new Observer(lat, lon, 0);
+  const startMs = darkness.duskStart.getTime();
+  const endMs = darkness.dawnEnd.getTime();
+  const stepMs = 5 * 60 * 1000;
+
+  const samples = sampleAltitudeWindow(startMs, endMs, stepMs, observer, raHours, decDeg);
+
+  let peak = samples[0];
+  for (const s of samples) {
+    if (s.alt > peak.alt) peak = s;
+  }
+
+  return { peakAltitude: peak.alt, peakTime: new Date(peak.t) };
 }
 
 // Standard IAU J2000 galactic north pole — used only to work out the
