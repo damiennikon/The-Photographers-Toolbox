@@ -43,6 +43,28 @@ function formatDuration(start, end) {
   return h === 0 ? `${m}m` : `${h}h ${m}m`;
 }
 
+// Many catalog entries (database/database.js) use their `name` field for a
+// generic category description rather than a proper name — e.g. 26 separate
+// Barnard dark nebulae are all literally named "Dark Nebula". Rendering
+// `name` verbatim in that case makes distinct objects look like duplicates,
+// so this table tracks which name values are shared so the label picker
+// below can fall back to `id` (the catalog designation, always unique —
+// e.g. "Barnard 92") for exactly those entries. Built once at module load
+// since it depends only on the static catalog, not per-render state.
+const DSO_NAME_OCCURRENCES = DSO_DATABASE.reduce((counts, entry) => {
+  counts[entry.name] = (counts[entry.name] || 0) + 1;
+  return counts;
+}, {});
+
+// Prefers the catalog's `name`, but falls back to `id` when name is missing
+// or — as is common in this catalog — just a generic type description
+// shared by multiple entries, so every rendered row gets a unique, specific
+// label instead of e.g. three targets all reading "Dark Nebula".
+function dsoTargetLabel(target) {
+  const hasDistinctName = target.name && DSO_NAME_OCCURRENCES[target.name] === 1;
+  return hasDistinctName ? target.name : target.id;
+}
+
 // "Alignment" catalog entries (NCP/SCP) are consumed by Polar Align, not
 // this list — they're fixed reference points, not shoot targets.
 function getDsoTargets(darkness, lat, lon) {
@@ -221,7 +243,7 @@ function dsoTargetRowMarkup(target) {
   return `
     <li class="pt-planner-dso-row">
       <div class="pt-planner-dso-row-main">
-        <span class="pt-planner-dso-name">${target.name}</span>
+        <span class="pt-planner-dso-name">${dsoTargetLabel(target)}</span>
         <span class="pt-planner-dso-type">${target.type}</span>
       </div>
       <div class="pt-planner-dso-row-stats">
