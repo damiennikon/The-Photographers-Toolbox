@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "astronomy-engine": "^2.1.19",
+    "leaflet": "^1.9.4",
     "suncalc": "^2.0.1"
   }
 }

@@ -50,6 +50,14 @@ export const TOOLS = [
     backgroundImage: "assets/tiles/astro-planner.webp",
     type: "internal",
   },
+  {
+    id: "map-locations",
+    name: "MAP LOCATIONS",
+    description: "Pin and organize your favourite photography spots.",
+    icon: "mapPin",
+    bg: "map",
+    type: "internal",
+  },
 ];
 
 export function getTool(id) {

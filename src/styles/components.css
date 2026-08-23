@@ -279,6 +279,9 @@
 .pt-tile-bg--planner {
   background: radial-gradient(circle at 65% 70%, #401b1f 0%, #0d1520 55%), linear-gradient(200deg, #351a22, #0a0e14 70%);
 }
+.pt-tile-bg--map {
+  background: radial-gradient(circle at 30% 70%, #163a30 0%, #0d1520 55%), linear-gradient(200deg, #16352c, #0a0e14 70%);
+}
 
 /* ---------- bottom pill ---------- */
 
