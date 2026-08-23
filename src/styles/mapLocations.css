@@ -111,22 +111,64 @@
   font-style: italic;
 }
 
+.pt-map-popup-address {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--pt-text-muted);
+  line-height: 1.4;
+}
+
+.pt-map-popup-address svg {
+  width: 13px;
+  height: 13px;
+  color: var(--pt-accent);
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.pt-map-popup-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pt-map-popup-maps,
 .pt-map-popup-delete {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  align-self: flex-start;
-  border: 1px solid var(--pt-accent);
+  border: 1px solid var(--pt-border);
   background: transparent;
-  color: var(--pt-accent);
+  color: var(--pt-text);
   border-radius: var(--pt-radius-sm);
   padding: 6px 10px;
   font-size: 12px;
+  text-decoration: none;
+  flex: 1 1 auto;
 }
 
+.pt-map-popup-maps svg,
 .pt-map-popup-delete svg {
   width: 14px;
   height: 14px;
+}
+
+.pt-map-popup-maps svg {
+  color: var(--pt-accent);
+}
+
+.pt-map-popup-maps:hover {
+  border-color: var(--pt-accent);
+  background: rgba(224, 41, 58, 0.08);
+}
+
+.pt-map-popup-delete {
+  flex: 0 0 auto;
+  border-color: var(--pt-accent);
+  color: var(--pt-accent);
 }
 
 .pt-map-popup-delete:hover {

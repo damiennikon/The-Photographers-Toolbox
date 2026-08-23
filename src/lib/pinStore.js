@@ -64,6 +64,23 @@ export async function updatePinPosition(id, lat, lng) {
   });
 }
 
+// Backfills the address on pins saved before this field existed, or ones
+// whose reverse-geocode lookup failed at save time — see mapLocations.js's
+// popupopen handler.
+export async function updatePinAddress(id, address) {
+  const db = await openDb();
+  const tx = db.transaction(STORE_NAME, "readwrite");
+  const store = tx.objectStore(STORE_NAME);
+  const getReq = store.get(id);
+  getReq.onsuccess = () => {
+    if (getReq.result) store.put({ ...getReq.result, address });
+  };
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function deletePin(id) {
   const db = await openDb();
   const tx = db.transaction(STORE_NAME, "readwrite");

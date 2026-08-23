@@ -3,8 +3,8 @@ import "leaflet/dist/leaflet.css";
 import { icon } from "../icons.js";
 import { getTool } from "../tools.config.js";
 import { navigate } from "../router.js";
-import { getCurrentPosition, createLocationSearch } from "../lib/geocode.js";
-import { getAllPins, savePin, updatePinPosition, deletePin, createPinId } from "../lib/pinStore.js";
+import { getCurrentPosition, createLocationSearch, reverseGeocode } from "../lib/geocode.js";
+import { getAllPins, savePin, updatePinPosition, updatePinAddress, deletePin, createPinId } from "../lib/pinStore.js";
 import { compressImage } from "../lib/imageCompress.js";
 
 // Matches the default location used by the toolbox's other tools.
@@ -104,10 +104,10 @@ function shellMarkup(tool) {
     </div>`;
 }
 
-function popupMarkup(pin) {
+function popupMarkup(pin, photoUrl) {
   const cat = categoryById(pin.category);
-  const photoUrl = pin.photoBlob ? URL.createObjectURL(pin.photoBlob) : null;
-  const html = `
+  const mapsUrl = `https://www.google.com/maps?q=${pin.lat},${pin.lng}`;
+  return `
     <div class="pt-map-popup">
       ${photoUrl ? `<img class="pt-map-popup-photo" src="${photoUrl}" alt="" />` : ""}
       <div class="pt-map-popup-head">
@@ -115,9 +115,12 @@ function popupMarkup(pin) {
         <h4>${escapeHtml(pin.name || cat.label)}</h4>
       </div>
       ${pin.notes ? `<p class="pt-map-popup-notes">"${escapeHtml(pin.notes)}"</p>` : ""}
-      <button class="pt-map-popup-delete" data-delete-pin type="button">${icon("trash")}<span>Delete</span></button>
+      ${pin.address ? `<p class="pt-map-popup-address">${icon("mapPin")}<span>${escapeHtml(pin.address)}</span></p>` : ""}
+      <div class="pt-map-popup-actions">
+        <a class="pt-map-popup-maps" href="${mapsUrl}" target="_blank" rel="noopener">${icon("externalLink")}<span>Google Maps</span></a>
+        <button class="pt-map-popup-delete" data-delete-pin type="button">${icon("trash")}<span>Delete</span></button>
+      </div>
     </div>`;
-  return { html, photoUrl };
 }
 
 export function renderMapLocations(container) {
@@ -166,18 +169,12 @@ export function renderMapLocations(container) {
     markersById.set(pin.id, marker);
 
     let popupPhotoUrl = null;
-    marker.bindPopup(
-      () => {
-        const built = popupMarkup(pin);
-        popupPhotoUrl = built.photoUrl;
-        return built.html;
-      },
-      { maxWidth: 240 }
-    );
+    marker.bindPopup("", { maxWidth: 240 });
 
-    marker.on("popupopen", () => {
-      marker
-        .getPopup()
+    function renderPopup() {
+      const popup = marker.getPopup();
+      popup.setContent(popupMarkup(pin, popupPhotoUrl));
+      popup
         .getElement()
         ?.querySelector("[data-delete-pin]")
         ?.addEventListener("click", () => {
@@ -189,6 +186,26 @@ export function renderMapLocations(container) {
             })
             .catch((err) => console.error("Failed to delete pin", err));
         });
+    }
+
+    marker.on("popupopen", () => {
+      popupPhotoUrl = pin.photoBlob ? URL.createObjectURL(pin.photoBlob) : null;
+      renderPopup();
+
+      // Older pins saved before the address field existed, or ones whose
+      // save-time lookup failed, backfill (and cache) on next view rather
+      // than blocking the popup from opening.
+      if (!pin.address) {
+        reverseGeocode(pin.lat, pin.lng)
+          .then((r) => r.name)
+          .catch(() => null)
+          .then((address) => {
+            if (!address) return;
+            pin.address = address;
+            updatePinAddress(pin.id, address).catch((err) => console.error("Failed to persist address", err));
+            if (marker.isPopupOpen()) renderPopup();
+          });
+      }
     });
 
     marker.on("popupclose", () => {
@@ -296,7 +313,12 @@ export function renderMapLocations(container) {
     saveBtn.disabled = true;
     saveBtn.textContent = "Saving…";
     try {
-      const photoBlob = pendingPhotoFile ? await compressImage(pendingPhotoFile) : null;
+      const [photoBlob, address] = await Promise.all([
+        pendingPhotoFile ? compressImage(pendingPhotoFile) : Promise.resolve(null),
+        reverseGeocode(draftLatLng.lat, draftLatLng.lng)
+          .then((r) => r.name)
+          .catch(() => null),
+      ]);
       const pin = {
         id: createPinId(),
         category: addCategory,
@@ -304,6 +326,7 @@ export function renderMapLocations(container) {
         notes: notesInput.value.trim(),
         lat: draftLatLng.lat,
         lng: draftLatLng.lng,
+        address,
         photoBlob,
         createdAt: Date.now(),
       };
