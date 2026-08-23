@@ -1,0 +1,324 @@
+/* ---------- Map Locations ---------- */
+
+.pt-map-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pt-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.pt-map-canvas--picking {
+  cursor: crosshair;
+}
+
+/* ---------- markers ---------- */
+
+.pt-map-marker-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--marker-color, var(--pt-accent));
+  background: var(--pt-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-map-marker-badge svg {
+  width: 16px;
+  height: 16px;
+  color: var(--marker-color, var(--pt-accent));
+}
+
+.pt-map-marker--draft .pt-map-marker-badge {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+/* ---------- popup theming (Leaflet defaults are light) ---------- */
+
+.leaflet-popup-content-wrapper {
+  background: var(--pt-card);
+  color: var(--pt-text);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-md);
+}
+
+.leaflet-popup-tip {
+  background: var(--pt-card);
+  border: 1px solid var(--pt-border);
+}
+
+.leaflet-popup-close-button {
+  color: var(--pt-text-muted) !important;
+}
+
+.pt-map-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 160px;
+}
+
+.pt-map-popup-photo {
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  border-radius: var(--pt-radius-sm);
+  display: block;
+}
+
+.pt-map-popup-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pt-map-popup-category {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid var(--marker-color, var(--pt-accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.pt-map-popup-category svg {
+  width: 13px;
+  height: 13px;
+  color: var(--marker-color, var(--pt-accent));
+}
+
+.pt-map-popup h4 {
+  margin: 0;
+  font-size: 14px;
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pt-map-popup-notes {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--pt-text-muted);
+  font-style: italic;
+}
+
+.pt-map-popup-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  border: 1px solid var(--pt-accent);
+  background: transparent;
+  color: var(--pt-accent);
+  border-radius: var(--pt-radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.pt-map-popup-delete svg {
+  width: 14px;
+  height: 14px;
+}
+
+.pt-map-popup-delete:hover {
+  background: rgba(224, 41, 58, 0.1);
+}
+
+/* ---------- FAB + category picker + add-mode hint ---------- */
+
+.pt-map-fab {
+  position: absolute;
+  right: var(--pt-space-4);
+  bottom: var(--pt-space-4);
+  z-index: 900;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--pt-accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-map-fab svg {
+  width: 26px;
+  height: 26px;
+}
+
+.pt-map-fab:hover {
+  background: var(--pt-accent-dim);
+}
+
+.pt-map-category-picker {
+  position: absolute;
+  right: var(--pt-space-4);
+  bottom: 88px;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-2);
+  align-items: flex-end;
+}
+
+.pt-map-category-picker[hidden] {
+  display: none;
+}
+
+.pt-map-category-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+  border: 1px solid var(--marker-color, var(--pt-border));
+  background: var(--pt-card);
+  color: var(--pt-text);
+  border-radius: var(--pt-radius-pill);
+  padding: 8px 14px 8px 10px;
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 12.5px;
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-map-category-btn svg {
+  width: 16px;
+  height: 16px;
+  color: var(--marker-color, var(--pt-accent));
+}
+
+.pt-map-category-btn:hover {
+  background: rgba(224, 41, 58, 0.08);
+}
+
+.pt-map-hint {
+  position: absolute;
+  top: var(--pt-space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-3);
+  background: var(--pt-card);
+  border: 1px solid var(--pt-accent);
+  border-radius: var(--pt-radius-pill);
+  padding: var(--pt-space-2) var(--pt-space-2) var(--pt-space-2) var(--pt-space-4);
+  box-shadow: var(--pt-shadow-card);
+  font-size: 13px;
+  max-width: calc(100% - var(--pt-space-6));
+}
+
+.pt-map-hint[hidden] {
+  display: none;
+}
+
+/* ---------- save modal ---------- */
+
+/* .pt-modal-backdrop's shared z-index (60) sits below this view's map
+   overlay controls (z-index 900, needed to stay above Leaflet's own panes
+   and popups) — bump it here so the save modal isn't rendered under the FAB. */
+[data-pin-modal-backdrop] {
+  z-index: 950;
+}
+
+.pt-map-modal {
+  text-align: left;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-3);
+}
+
+.pt-map-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pt-map-modal-category {
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 14px;
+  color: var(--pt-accent);
+}
+
+.pt-map-input,
+.pt-map-textarea {
+  width: 100%;
+  background: var(--pt-bg);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-sm);
+  padding: var(--pt-space-3);
+  color: var(--pt-text);
+  font-family: var(--pt-font-body);
+  font-size: 14px;
+  resize: none;
+}
+
+.pt-map-input:focus,
+.pt-map-textarea:focus {
+  outline: none;
+  border-color: var(--pt-accent);
+}
+
+.pt-map-search {
+  position: relative;
+}
+
+.pt-map-photo-input {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+  border: 1px dashed var(--pt-border);
+  border-radius: var(--pt-radius-sm);
+  padding: var(--pt-space-3);
+  color: var(--pt-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pt-map-photo-input svg {
+  width: 18px;
+  height: 18px;
+  color: var(--pt-accent);
+  flex: 0 0 auto;
+}
+
+.pt-map-photo-input:hover {
+  border-color: var(--pt-accent);
+}
+
+.pt-map-save-btn {
+  width: 100%;
+  padding: var(--pt-space-3);
+  border-radius: var(--pt-radius-sm);
+  border: none;
+  background: var(--pt-accent);
+  color: white;
+  font-family: var(--pt-font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 14px;
+}
+
+.pt-map-save-btn:hover {
+  background: var(--pt-accent-dim);
+}
+
+.pt-map-save-btn:disabled {
+  opacity: 0.6;
+}
