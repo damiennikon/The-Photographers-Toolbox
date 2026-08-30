@@ -7,13 +7,25 @@
 
 .pt-planner-datetime {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--pt-space-3);
   border-top: 1px solid var(--pt-border);
   padding-top: var(--pt-space-3);
 }
 
+/* flex-basis 200px (rather than a fixed viewport-width media query) is what
+   actually decides the wrap point — a native <input type="time"> renders
+   wide enough (worse in 12-hour AM/PM locales, as seen on mobile) that two
+   side by side no longer fit inside a ~360-420px phone viewport once the
+   card's own padding and the "DATE"/"TIME" labels are accounted for, so
+   they wrap to full-width stacked rows instead of shrinking to the point of
+   being hard to tap/read; desktop/tablet widths have room for both on one
+   line. min-width: 0 stops a flex item from refusing to shrink below its
+   content's intrinsic width, which is what let the TIME input get clipped
+   off-screen instead of wrapping in the first place. */
 .pt-planner-datetime .pt-planner-date {
-  flex: 1 1 0;
+  flex: 1 1 200px;
+  min-width: 0;
   border-top: none;
   padding-top: 0;
 }
