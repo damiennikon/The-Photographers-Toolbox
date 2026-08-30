@@ -1,0 +1,66 @@
+/* ---------- Sun Planner ---------- */
+/* Card, stat, search and date-input styling is shared with Astro Planner
+   (.pt-card, .pt-planner-stat-row, .pt-planner-search*, .pt-planner-date*
+   etc. all live in astroPlanner.css) — only the pieces unique to this tool
+   (date+time side-by-side, the embedded map, the saved-pin list, the
+   current-location shortcut) are defined here. */
+
+.pt-planner-datetime {
+  display: flex;
+  gap: var(--pt-space-3);
+  border-top: 1px solid var(--pt-border);
+  padding-top: var(--pt-space-3);
+}
+
+.pt-planner-datetime .pt-planner-date {
+  flex: 1 1 0;
+  border-top: none;
+  padding-top: 0;
+}
+
+.pt-planner-current-location-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-2);
+  width: 100%;
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-sm);
+  background: transparent;
+  color: var(--pt-text);
+  padding: var(--pt-space-2) var(--pt-space-3);
+  font-size: 13.5px;
+}
+
+.pt-planner-current-location-btn:hover:not(:disabled) {
+  border-color: var(--pt-accent);
+  background: rgba(224, 41, 58, 0.08);
+}
+
+.pt-planner-current-location-btn:disabled {
+  opacity: 0.6;
+}
+
+.pt-planner-current-location-btn svg {
+  width: 16px;
+  height: 16px;
+  color: var(--pt-accent);
+  flex: 0 0 auto;
+}
+
+.pt-planner-pin-list-wrap {
+  border-top: 1px solid var(--pt-border);
+  padding-top: var(--pt-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-2);
+}
+
+.pt-planner-map-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.pt-planner-map-canvas {
+  width: 100%;
+  height: 280px;
+}

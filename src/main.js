@@ -3,6 +3,7 @@ import { renderHome } from "./views/home.js";
 import { renderToolView } from "./views/toolView.js";
 import { renderAstroPlanner } from "./views/astroPlanner.js";
 import { renderMapLocations } from "./views/mapLocations.js";
+import { renderSunPlanner } from "./views/sunPlanner.js";
 import { mountNavDrawer } from "./components/navDrawer.js";
 import { getTool } from "./tools.config.js";
 
@@ -16,6 +17,7 @@ mountNavDrawer(document.body);
 const INTERNAL_VIEWS = {
   "astro-planner": renderAstroPlanner,
   "map-locations": renderMapLocations,
+  "sun-planner": renderSunPlanner,
 };
 
 route(/^\/tool\/(?<id>[\w-]+)$/, ({ id }) => {
