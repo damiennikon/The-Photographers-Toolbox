@@ -26,7 +26,13 @@ function shortName(display) {
 }
 
 export async function reverseGeocode(lat, lon) {
-  const url = `${NOMINATIM_BASE}/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
+  // zoom=14 (suburb level) rather than Nominatim's coarser city-level zoom=10
+  // — at zoom=10, an outer-suburb fix's display_name resolves to its parent
+  // city (e.g. "Brisbane, Queensland" for a point well outside the city
+  // proper), which reads as if the location itself were wrong even when the
+  // coordinates are accurate. shortName()'s 2-part slice turns zoom=14's
+  // display_name into "Suburb, State" instead.
+  const url = `${NOMINATIM_BASE}/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`;
   const data = await rateLimitedFetch(url);
   if (!data || !data.display_name) throw new Error("No reverse geocode result");
   return {
@@ -81,7 +87,14 @@ export function createLocationSearch(onResults, delayMs = 700) {
   };
 }
 
-export function getCurrentPosition(options = { timeout: 8000 }) {
+// enableHighAccuracy requests a GPS-based fix on devices that have one,
+// rather than the low-accuracy default (cell tower / Wi-Fi positioning,
+// often off by hundreds of metres to a few km — the cause of pins landing
+// a few streets away from the real spot). maximumAge: 0 stops a stale
+// cached low-accuracy fix from a previous (non-high-accuracy) request being
+// handed back instead of a fresh GPS one; timeout is bumped from 8s since a
+// GPS fix can take a bit longer than a network-based one, especially cold.
+export function getCurrentPosition(options = { timeout: 12000, enableHighAccuracy: true, maximumAge: 0 }) {
   return new Promise((resolve, reject) => {
     if (!("geolocation" in navigator)) {
       reject(new Error("Geolocation not supported"));
