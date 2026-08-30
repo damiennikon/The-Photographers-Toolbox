@@ -3,12 +3,19 @@
 // this worker never touches cross-origin requests, so that's left alone
 // deliberately (deferred, per Stage 1 scope).
 
-const CACHE_VERSION = "pt-shell-v1";
+// Bumped from v1 to v2 for the new logo — this is a cache-first worker, so
+// without a version bump existing installs would keep serving the old
+// aperture-mark icons from cache indefinitely rather than picking up the
+// new ones. activate() below deletes any cache key that isn't this one.
+const CACHE_VERSION = "pt-shell-v2";
 const SHELL_SCOPE = self.registration.scope;
 
 const SHELL_ASSETS = [
   `${SHELL_SCOPE}`,
   `${SHELL_SCOPE}manifest.json`,
+  `${SHELL_SCOPE}icons/icon-16.png`,
+  `${SHELL_SCOPE}icons/icon-32.png`,
+  `${SHELL_SCOPE}icons/icon-180.png`,
   `${SHELL_SCOPE}icons/icon-192.png`,
   `${SHELL_SCOPE}icons/icon-512.png`,
 ];
