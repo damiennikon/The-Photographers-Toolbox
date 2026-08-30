@@ -63,13 +63,13 @@ python scripts/process_tile_images.py
 
 ## Icons
 
-`public/icons/icon-192.png` and `icon-512.png` are generated from
-`scripts/gen_icons.py` (requires Python + Pillow). Re-run it if the aperture
-mark's colors or proportions change:
-
-```bash
-python scripts/gen_icons.py
-```
+`public/icons/*.png` (16/32 favicon, 180 Apple touch icon, 192/512 manifest
+icons) are static designed assets, referenced from `index.html` and
+`public/manifest.json`. Replace them directly (matching filename/size) if
+the logo changes — there's no generation step. `public/sw.js`'s
+`SHELL_ASSETS` list also names them explicitly; bump `CACHE_VERSION` there
+when replacing them so existing installs' cache-first service worker picks
+up the new files instead of serving the old ones indefinitely.
 
 ## Explicitly out of scope for Stage 1
 
