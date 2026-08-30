@@ -1,5 +1,6 @@
-// Astro calculations for the Night Quality Dashboard (Astro Planner Phase 1).
-import { getTimes, getMoonPosition, getMoonTimes } from "suncalc";
+// Astro calculations for the Night Quality Dashboard (Astro Planner Phase 1)
+// and Sun Planner.
+import { getTimes, getPosition, getMoonPosition, getMoonTimes } from "suncalc";
 import { Observer, Horizon } from "astronomy-engine";
 
 // Ported from LensLink's getMoonIllumination(). A simple synodic-cycle
@@ -364,4 +365,45 @@ export function getCelestialPoleAltAz(date, lat, lon) {
   const dec = hemisphere === "N" ? 90 : -90;
   const altAz = Horizon(date, new Observer(lat, lon, 0), 0, dec, "normal");
   return { ...altAz, hemisphere };
+}
+
+// Sun's live alt/az at a specific instant — for Sun Planner's "where does the
+// light fall from" readout and its direction line on the map. suncalc (this
+// repo is on v2.0.1) already returns azimuth as a standard compass bearing —
+// degrees, clockwise from north, 0 = N — per its README ("azimuth: sun
+// azimuth in degrees, clockwise from north") and the `azimuth()` helper's own
+// comment in suncalc/index.js. That's a deliberate break from the older
+// suncalc convention (radians, 0 = south, positive toward west) that's still
+// widely referenced online — no south-to-north conversion is needed or
+// applied here. Uses suncalc rather than astronomy-engine's Horizon() (the
+// pattern the rest of this file uses for the galactic core/DSOs/pole) since
+// suncalc solves the Sun's position directly in one call, with no RA/Dec
+// lookup step in between.
+export function getSunPosition(date, lat, lon) {
+  const pos = getPosition(date, lat, lon);
+  return { azimuthDeg: pos.azimuth, altitudeDeg: pos.altitude };
+}
+
+// Sun Planner's info-card times for a given calendar date/location, wrapping
+// suncalc's getTimes(). Blue hour has no dedicated suncalc field — defined
+// here as dusk -> nauticalDusk (civil twilight's end to nautical twilight's
+// end), the conventional "sky is still blue, sun well below the horizon"
+// window photographers mean by the term.
+export function getSunTimes(date, lat, lon) {
+  const t = getTimes(date, lat, lon);
+  return {
+    sunrise: t.sunrise ?? null,
+    sunset: t.sunset ?? null,
+    goldenHourEnd: t.goldenHourEnd ?? null, // morning golden hour ends
+    goldenHour: t.goldenHour ?? null, // evening golden hour starts
+    dusk: t.dusk ?? null,
+    nauticalDusk: t.nauticalDusk ?? null,
+    dawn: t.dawn ?? null,
+    nauticalDawn: t.nauticalDawn ?? null,
+    solarNoon: t.solarNoon ?? null,
+    blueHourMorningStart: t.nauticalDawn ?? null,
+    blueHourMorningEnd: t.dawn ?? null,
+    blueHourEveningStart: t.dusk ?? null,
+    blueHourEveningEnd: t.nauticalDusk ?? null,
+  };
 }

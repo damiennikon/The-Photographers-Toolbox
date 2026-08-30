@@ -6,21 +6,10 @@ import { navigate } from "../router.js";
 import { getCurrentPosition, createLocationSearch, reverseGeocode } from "../lib/geocode.js";
 import { getAllPins, savePin, updatePinPosition, updatePinAddress, deletePin, createPinId } from "../lib/pinStore.js";
 import { compressImage } from "../lib/imageCompress.js";
+import { CATEGORIES, categoryById } from "../lib/pinCategories.js";
 
 // Matches the default location used by the toolbox's other tools.
 const DEFAULT_LOCATION = { lat: -27.6954, lon: 153.1185 };
-
-const CATEGORIES = [
-  { id: "astro", label: "Astro", icon: "telescope", color: "#7c9fe0" },
-  { id: "aviation", label: "Aviation", icon: "plane", color: "#4fb8e0" },
-  { id: "wildlife", label: "Wildlife", icon: "paw", color: "#6fbf73" },
-  { id: "landscape", label: "Landscape", icon: "mountain", color: "#e0a83f" },
-  { id: "other", label: "Other", icon: "mapPin", color: "#e0293a" },
-];
-
-function categoryById(id) {
-  return CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
-}
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);

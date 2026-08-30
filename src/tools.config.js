@@ -58,6 +58,14 @@ export const TOOLS = [
     bg: "map",
     type: "internal",
   },
+  {
+    id: "sun-planner",
+    name: "SUN PLANNER",
+    description: "Sunrise, sunset, golden hour and sun direction for any spot.",
+    icon: "sunrise",
+    bg: "planner",
+    type: "internal",
+  },
 ];
 
 export function getTool(id) {
