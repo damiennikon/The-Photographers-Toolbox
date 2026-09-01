@@ -19,6 +19,11 @@ import { DSO_DATABASE } from "../../database/database.js";
 // Matches the default location used by the toolbox's other tools.
 const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185, countryCode: "au", countryName: "Australia" };
 
+// Used only when auto-locate genuinely fails and we fall back to
+// DEFAULT_LOCATION, so the fallback is visibly distinct from a real fix
+// (see locationStatus "fallback" below) instead of reading as one.
+const FALLBACK_LOCATION = { ...DEFAULT_LOCATION, name: `${DEFAULT_LOCATION.name} (default — location unavailable)` };
+
 function todayInputValue() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -358,11 +363,12 @@ function searchMarkup(state) {
 
 function controlsMarkup(state) {
   const locationLabel = state.locationStatus === "locating" ? "Locating…" : state.location.name;
+  const fallbackClass = state.locationStatus === "fallback" ? " pt-planner-location-name--fallback" : "";
   return `
     <section class="pt-planner-controls">
       <div class="pt-planner-location">
         ${icon("mapPin", "pt-planner-location-icon")}
-        <span class="pt-planner-location-name">${escapeHtml(locationLabel)}</span>
+        <span class="pt-planner-location-name${fallbackClass}" title="${escapeHtml(locationLabel)}">${escapeHtml(locationLabel)}</span>
         <button class="pt-planner-location-change" data-toggle-search type="button">${state.searchOpen ? "Cancel" : "Change"}</button>
       </div>
       ${state.searchOpen ? searchMarkup(state) : ""}
@@ -522,10 +528,15 @@ export function renderAstroPlanner(container) {
         .then((r) => ({ lat, lon, name: r.name, countryCode: r.countryCode, countryName: r.countryName }))
         .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, countryCode: null, countryName: null }))
     )
-    .catch(() => ({ ...DEFAULT_LOCATION }))
     .then((location) => {
       state.location = location;
       state.locationStatus = "resolved";
+      render();
+    })
+    .catch((err) => {
+      console.warn("[astroPlanner] auto-locate failed, falling back to default location", err);
+      state.location = { ...FALLBACK_LOCATION };
+      state.locationStatus = "fallback";
       render();
     });
 }
