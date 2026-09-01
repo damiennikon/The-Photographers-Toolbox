@@ -67,9 +67,17 @@ function dsoTargetLabel(target) {
 
 // "Alignment" catalog entries (NCP/SCP) are consumed by Polar Align, not
 // this list — they're fixed reference points, not shoot targets.
+//
+// database/database.js stores every entry's RA in degrees (0-360), but
+// getTargetPeakAltitude()/astronomy-engine's Horizon() take RA in sidereal
+// hours (0-24) — the parameter is literally named raHours. Converting here,
+// at this single call site, rather than rewriting all 198 catalog entries:
+// this is the only place RA is read from the catalog for altitude/time math
+// (the galactic core and celestial pole use their own hardcoded/irrelevant
+// RA values, unaffected).
 function getDsoTargets(darkness, lat, lon) {
   return DSO_DATABASE.filter((entry) => entry.type !== "Alignment")
-    .map((entry) => ({ ...entry, ...getTargetPeakAltitude(darkness, lat, lon, entry.ra, entry.dec) }))
+    .map((entry) => ({ ...entry, ...getTargetPeakAltitude(darkness, lat, lon, entry.ra / 15, entry.dec) }))
     .filter((entry) => entry.peakAltitude !== null && entry.peakAltitude > DSO_MIN_ALTITUDE)
     .sort((a, b) => b.peakAltitude - a.peakAltitude);
 }
