@@ -24,6 +24,14 @@ function todayInputValue() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Same escaping Sun Planner uses (sunPlanner.js:45) for the same job — this
+// view was missing it entirely, which let unescaped geocoder-supplied
+// strings (search results, the search query, location/country names) reach
+// innerHTML verbatim.
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
 function formatTime(date) {
   if (!date) return "—";
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -316,7 +324,7 @@ function searchResultsMarkup(state) {
     .map(
       (r, i) => `
         <li class="pt-planner-search-result" data-result-index="${i}">
-          ${icon("mapPin")}<span>${r.name}</span>
+          ${icon("mapPin")}<span>${escapeHtml(r.name)}</span>
         </li>`
     )
     .join("");
@@ -328,12 +336,14 @@ function effectiveCountryCode(state) {
 
 function searchMarkup(state) {
   const scopeLabel =
-    !state.searchWorldwide && state.location.countryName ? `Results scoped to ${state.location.countryName}` : "Searching worldwide";
+    !state.searchWorldwide && state.location.countryName
+      ? `Results scoped to ${escapeHtml(state.location.countryName)}`
+      : "Searching worldwide";
   return `
     <div class="pt-planner-search">
       <div class="pt-planner-search-input-wrap">
         ${icon("search", "pt-planner-search-icon")}
-        <input type="text" class="pt-planner-search-input" data-location-input placeholder="Search for a place…" autocomplete="off" value="${state.searchQuery}" />
+        <input type="text" class="pt-planner-search-input" data-location-input placeholder="Search for a place…" autocomplete="off" value="${escapeHtml(state.searchQuery)}" />
       </div>
       <div class="pt-planner-search-scope">
         <span>${scopeLabel}</span>
@@ -352,7 +362,7 @@ function controlsMarkup(state) {
     <section class="pt-planner-controls">
       <div class="pt-planner-location">
         ${icon("mapPin", "pt-planner-location-icon")}
-        <span class="pt-planner-location-name">${locationLabel}</span>
+        <span class="pt-planner-location-name">${escapeHtml(locationLabel)}</span>
         <button class="pt-planner-location-change" data-toggle-search type="button">${state.searchOpen ? "Cancel" : "Change"}</button>
       </div>
       ${state.searchOpen ? searchMarkup(state) : ""}
