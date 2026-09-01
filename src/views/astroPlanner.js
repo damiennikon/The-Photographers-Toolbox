@@ -10,6 +10,7 @@ import {
   getMoonInfo,
   getTargetPeakAltitude,
   DSO_MIN_ALTITUDE,
+  parseCalendarDate,
 } from "../lib/astroCalc.js";
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
 import { openNightAR, openPolarAlign } from "../components/nightAR.js";
@@ -21,13 +22,6 @@ const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185
 function todayInputValue() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-// Built from local Y/M/D components rather than `new Date(isoString)` so the
-// selected calendar date can't shift a day when the browser is west of UTC.
-function parseDateInput(value) {
-  const [y, m, d] = value.split("-").map(Number);
-  return new Date(y, m - 1, d);
 }
 
 function formatTime(date) {
@@ -83,7 +77,7 @@ function getDsoTargets(darkness, lat, lon) {
 }
 
 function computeDashboard(state) {
-  const date = parseDateInput(state.dateValue);
+  const date = parseCalendarDate(state.dateValue);
   const { lat, lon } = state.location;
   const darkness = getDarknessWindow(date, lat, lon);
   const moon = getMoonInfo(date, lat, lon, darkness.duskStart, darkness.dawnEnd);
