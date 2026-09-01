@@ -51,6 +51,10 @@
   text-overflow: ellipsis;
 }
 
+.pt-planner-location-name--fallback {
+  color: #e0a83f;
+}
+
 .pt-planner-location-change {
   flex: 0 0 auto;
   background: transparent;

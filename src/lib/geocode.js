@@ -87,23 +87,47 @@ export function createLocationSearch(onResults, delayMs = 700) {
   };
 }
 
-// enableHighAccuracy requests a GPS-based fix on devices that have one,
-// rather than the low-accuracy default (cell tower / Wi-Fi positioning,
-// often off by hundreds of metres to a few km — the cause of pins landing
-// a few streets away from the real spot). maximumAge: 0 stops a stale
-// cached low-accuracy fix from a previous (non-high-accuracy) request being
-// handed back instead of a fresh GPS one; timeout is bumped from 8s since a
-// GPS fix can take a bit longer than a network-based one, especially cold.
-export function getCurrentPosition(options = { timeout: 12000, enableHighAccuracy: true, maximumAge: 0 }) {
+function rawGetCurrentPosition(options) {
   return new Promise((resolve, reject) => {
-    if (!("geolocation" in navigator)) {
-      reject(new Error("Geolocation not supported"));
-      return;
-    }
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
       (err) => reject(err),
       options
     );
   });
+}
+
+// enableHighAccuracy requests a GPS-based fix on devices that have one,
+// rather than the low-accuracy default (cell tower / Wi-Fi positioning,
+// often off by hundreds of metres to a few km — the cause of pins landing
+// a few streets away from the real spot). maximumAge: 0 on the first
+// attempt stops a stale cached low-accuracy fix from a previous
+// (non-high-accuracy) request being handed back instead of a fresh GPS one.
+//
+// A cold GPS fix can legitimately take longer than a single ~15s budget
+// even with permission already granted (first fix after the radio has been
+// idle, weak signal indoors near a window, etc.), which previously surfaced
+// as a silent fallback to DEFAULT_LOCATION indistinguishable from a real
+// fix. So on POSITION_UNAVAILABLE or TIMEOUT (never PERMISSION_DENIED,
+// which a retry can't fix) we retry once with a longer timeout and a small
+// maximumAge, in case a fix lands in the gap between the two calls.
+const DEFAULT_TIMEOUT_MS = 15000;
+const RETRY_TIMEOUT_MS = 20000;
+const RETRY_MAX_AGE_MS = 10000;
+const PERMISSION_DENIED = 1;
+
+export async function getCurrentPosition(options = { timeout: DEFAULT_TIMEOUT_MS, enableHighAccuracy: true, maximumAge: 0 }) {
+  if (!("geolocation" in navigator)) {
+    throw new Error("Geolocation not supported");
+  }
+  try {
+    return await rawGetCurrentPosition(options);
+  } catch (err) {
+    if (err?.code === PERMISSION_DENIED) throw err;
+    console.warn("[geocode] getCurrentPosition failed, retrying once with a longer timeout", {
+      code: err?.code,
+      message: err?.message,
+    });
+    return await rawGetCurrentPosition({ ...options, timeout: RETRY_TIMEOUT_MS, maximumAge: RETRY_MAX_AGE_MS });
+  }
 }
