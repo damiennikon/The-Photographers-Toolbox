@@ -19,7 +19,7 @@ export const TOOLS = [
     backgroundImage: "assets/tiles/spotters-log.webp",
     type: "iframe",
     // NOTE: will change when Spotters Log moves to damienleydenphotography.au — update here only
-    url: "https://airscapephotos.com/photo-log/index-layout-test.html",
+    url: "https://airscapephotos.com/photo-log/",
   },
   {
     id: "astro-weather",
