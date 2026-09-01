@@ -3,7 +3,7 @@ import "leaflet/dist/leaflet.css";
 import { icon } from "../icons.js";
 import { getTool } from "../tools.config.js";
 import { navigate } from "../router.js";
-import { getSunPosition, getSunTimes } from "../lib/astroCalc.js";
+import { getSunPosition, getSunTimes, parseCalendarDate } from "../lib/astroCalc.js";
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
 import { getAllPins } from "../lib/pinStore.js";
 import { categoryById } from "../lib/pinCategories.js";
@@ -56,14 +56,15 @@ function nowInputValue() {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-// Same local Y/M/D construction Astro Planner uses (rather than
-// `new Date(isoString)`) so the selected calendar date can't shift a day
-// when the browser is west of UTC — extended here to also fold in the H/M
-// from the time input so a selected time can't shift across midnight the
-// same way. Like the rest of the app, this builds a plain local-system-time
-// Date; there's no location-timezone lookup dependency here, so a selected
-// time is interpreted in the browser's own timezone, not the target
-// location's — the same limitation Astro Planner's "night of" date already has.
+// Builds the exact selected instant (date + clock time) for getSunPosition,
+// which wants the user's real chosen time, not a day-boundary-safe stand-in
+// — suncalc's getPosition() computes directly from this instant with no
+// day-rounding step, so unlike getSunTimes() below it was never affected by
+// the day-boundary bug (see parseCalendarDate in astroCalc.js). Like the
+// rest of the app, this builds a plain local-system-time Date; there's no
+// location-timezone lookup dependency here, so a selected time is
+// interpreted in the browser's own timezone, not the target location's —
+// the same limitation Astro Planner's "night of" date already has.
 function parseDateTimeInput(dateValue, timeValue) {
   const [y, m, d] = dateValue.split("-").map(Number);
   const [h, min] = (timeValue || "00:00").split(":").map(Number);
@@ -76,10 +77,9 @@ function formatTime(date) {
 }
 
 function computeDashboard(state) {
-  const date = parseDateTimeInput(state.dateValue, state.timeValue);
   const { lat, lon } = state.location;
-  const sun = getSunPosition(date, lat, lon);
-  const times = getSunTimes(date, lat, lon);
+  const sun = getSunPosition(parseDateTimeInput(state.dateValue, state.timeValue), lat, lon);
+  const times = getSunTimes(parseCalendarDate(state.dateValue), lat, lon);
   return { sun, times };
 }
 
