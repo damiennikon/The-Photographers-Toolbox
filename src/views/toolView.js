@@ -67,7 +67,13 @@ export function renderToolView(container, toolId) {
   const iframe = document.createElement("iframe");
   iframe.src = tool.url;
   iframe.title = tool.name;
-  iframe.allow = "geolocation; fullscreen";
+  // camera/gyroscope/accelerometer/magnetometer: DSO Search's Night AR and
+  // Polar Align (its own copy of nightAR.js) need all four for
+  // getUserMedia() and the device-orientation compass. Without them here,
+  // both silently fail with NotAllowedError the moment DSO Search is opened
+  // through this tile — the permission is denied at the frame boundary
+  // before the embedded page ever gets to ask the user.
+  iframe.allow = "geolocation; camera; gyroscope; accelerometer; magnetometer; fullscreen";
   iframe.referrerPolicy = "no-referrer-when-downgrade";
   iframe.style.display = "none";
 
