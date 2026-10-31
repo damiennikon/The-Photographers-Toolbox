@@ -3,6 +3,25 @@
 import { getTimes, getPosition, getMoonPosition, getMoonTimes } from "suncalc";
 import { Observer, Horizon } from "astronomy-engine";
 
+// Parses a "YYYY-MM-DD" <input type="date"> value into a Date representing
+// that calendar day, anchored at local noon rather than midnight.
+// getDarknessWindow/getSunTimes below (and getMoonTimes, via getMoonInfo)
+// all key off suncalc's day-boundary rounding, which resolves to the solar
+// day containing whatever instant it's handed. Local midnight sits exactly
+// on the boundary between two solar days, so the rounding was tipping it to
+// the *previous* one at every longitude — Astro Planner was always off by a
+// full day, and Sun Planner was off whenever the selected time was before
+// roughly 10-11am local. Local noon is unambiguously inside the intended
+// solar day instead. Shared by both planners so this is fixed in one place
+// rather than two divergent copies of the same date construction; a
+// caller that needs the user's exact selected clock time (Sun Planner's
+// getSunPosition) should keep building its own Date rather than route
+// through this, since noon would give the wrong live sun position.
+export function parseCalendarDate(value) {
+  const [y, m, d] = value.split("-").map(Number);
+  return new Date(y, m - 1, d, 12);
+}
+
 // Ported from LensLink's getMoonIllumination(). A simple synodic-cycle
 // approximation (not full lunar ephemeris) — good enough for a "roughly how
 // full is the moon" readout.

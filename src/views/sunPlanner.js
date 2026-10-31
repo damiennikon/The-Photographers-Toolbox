@@ -3,13 +3,18 @@ import "leaflet/dist/leaflet.css";
 import { icon } from "../icons.js";
 import { getTool } from "../tools.config.js";
 import { navigate } from "../router.js";
-import { getSunPosition, getSunTimes } from "../lib/astroCalc.js";
+import { getSunPosition, getSunTimes, parseCalendarDate } from "../lib/astroCalc.js";
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
 import { getAllPins } from "../lib/pinStore.js";
 import { categoryById } from "../lib/pinCategories.js";
 
 // Matches the default location used by the toolbox's other tools.
 const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185, countryCode: "au", countryName: "Australia" };
+
+// Used only when auto-locate genuinely fails and we fall back to
+// DEFAULT_LOCATION, so the fallback is visibly distinct from a real fix
+// (see locationStatus "fallback" below) instead of reading as one.
+const FALLBACK_LOCATION = { ...DEFAULT_LOCATION, name: `${DEFAULT_LOCATION.name} (default — location unavailable)` };
 
 const MAP_INIT_ZOOM = 11;
 const MAP_FOCUS_ZOOM = 13;
@@ -56,14 +61,15 @@ function nowInputValue() {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-// Same local Y/M/D construction Astro Planner uses (rather than
-// `new Date(isoString)`) so the selected calendar date can't shift a day
-// when the browser is west of UTC — extended here to also fold in the H/M
-// from the time input so a selected time can't shift across midnight the
-// same way. Like the rest of the app, this builds a plain local-system-time
-// Date; there's no location-timezone lookup dependency here, so a selected
-// time is interpreted in the browser's own timezone, not the target
-// location's — the same limitation Astro Planner's "night of" date already has.
+// Builds the exact selected instant (date + clock time) for getSunPosition,
+// which wants the user's real chosen time, not a day-boundary-safe stand-in
+// — suncalc's getPosition() computes directly from this instant with no
+// day-rounding step, so unlike getSunTimes() below it was never affected by
+// the day-boundary bug (see parseCalendarDate in astroCalc.js). Like the
+// rest of the app, this builds a plain local-system-time Date; there's no
+// location-timezone lookup dependency here, so a selected time is
+// interpreted in the browser's own timezone, not the target location's —
+// the same limitation Astro Planner's "night of" date already has.
 function parseDateTimeInput(dateValue, timeValue) {
   const [y, m, d] = dateValue.split("-").map(Number);
   const [h, min] = (timeValue || "00:00").split(":").map(Number);
@@ -76,10 +82,9 @@ function formatTime(date) {
 }
 
 function computeDashboard(state) {
-  const date = parseDateTimeInput(state.dateValue, state.timeValue);
   const { lat, lon } = state.location;
-  const sun = getSunPosition(date, lat, lon);
-  const times = getSunTimes(date, lat, lon);
+  const sun = getSunPosition(parseDateTimeInput(state.dateValue, state.timeValue), lat, lon);
+  const times = getSunTimes(parseCalendarDate(state.dateValue), lat, lon);
   return { sun, times };
 }
 
@@ -221,11 +226,12 @@ function locationPanelMarkup(state) {
 
 function controlsMarkup(state) {
   const locationLabel = state.locationStatus === "locating" ? "Locating…" : state.location.name;
+  const fallbackClass = state.locationStatus === "fallback" ? " pt-planner-location-name--fallback" : "";
   return `
     <section class="pt-planner-controls">
       <div class="pt-planner-location">
         ${icon("mapPin", "pt-planner-location-icon")}
-        <span class="pt-planner-location-name" data-location-name>${escapeHtml(locationLabel)}</span>
+        <span class="pt-planner-location-name${fallbackClass}" data-location-name title="${escapeHtml(locationLabel)}">${escapeHtml(locationLabel)}</span>
         <button class="pt-planner-location-change" data-toggle-search type="button">${state.searchOpen ? "Cancel" : "Change"}</button>
       </div>
       <div data-location-panel ${state.searchOpen ? "" : "hidden"}></div>
@@ -376,6 +382,18 @@ export function renderSunPlanner(container) {
     bindResultClicks();
   }
 
+  // Patches the location name in place (used by the auto-locate flow, which
+  // updates controlsEl's live DOM directly rather than going through
+  // renderControls) so a fallback result gets the same visual distinction —
+  // amber text + title tooltip — as a fresh renderControls() call would give it.
+  function applyLocationName(name, isFallback) {
+    const nameEl = controlsEl.querySelector("[data-location-name]");
+    if (!nameEl) return;
+    nameEl.textContent = name;
+    nameEl.title = name;
+    nameEl.classList.toggle("pt-planner-location-name--fallback", isFallback);
+  }
+
   function selectLocation(location) {
     state.location = location;
     state.locationStatus = "resolved";
@@ -502,12 +520,18 @@ export function renderSunPlanner(container) {
         .then((r) => ({ lat, lon, name: r.name, countryCode: r.countryCode, countryName: r.countryName }))
         .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, countryCode: null, countryName: null }))
     )
-    .catch(() => ({ ...DEFAULT_LOCATION }))
     .then((location) => {
       state.location = location;
       state.locationStatus = "resolved";
-      const nameEl = controlsEl.querySelector("[data-location-name]");
-      if (nameEl) nameEl.textContent = location.name;
+      applyLocationName(location.name, false);
+      updateMap(true);
+      renderInfoCards();
+    })
+    .catch((err) => {
+      console.warn("[sunPlanner] auto-locate failed, falling back to default location", err);
+      state.location = { ...FALLBACK_LOCATION };
+      state.locationStatus = "fallback";
+      applyLocationName(state.location.name, true);
       updateMap(true);
       renderInfoCards();
     });

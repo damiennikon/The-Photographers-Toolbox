@@ -10,6 +10,7 @@ import {
   getMoonInfo,
   getTargetPeakAltitude,
   DSO_MIN_ALTITUDE,
+  parseCalendarDate,
 } from "../lib/astroCalc.js";
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
 import { openNightAR, openPolarAlign } from "../components/nightAR.js";
@@ -18,16 +19,22 @@ import { DSO_DATABASE } from "../../database/database.js";
 // Matches the default location used by the toolbox's other tools.
 const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185, countryCode: "au", countryName: "Australia" };
 
+// Used only when auto-locate genuinely fails and we fall back to
+// DEFAULT_LOCATION, so the fallback is visibly distinct from a real fix
+// (see locationStatus "fallback" below) instead of reading as one.
+const FALLBACK_LOCATION = { ...DEFAULT_LOCATION, name: `${DEFAULT_LOCATION.name} (default — location unavailable)` };
+
 function todayInputValue() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// Built from local Y/M/D components rather than `new Date(isoString)` so the
-// selected calendar date can't shift a day when the browser is west of UTC.
-function parseDateInput(value) {
-  const [y, m, d] = value.split("-").map(Number);
-  return new Date(y, m - 1, d);
+// Same escaping Sun Planner uses (sunPlanner.js:45) for the same job — this
+// view was missing it entirely, which let unescaped geocoder-supplied
+// strings (search results, the search query, location/country names) reach
+// innerHTML verbatim.
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
 function formatTime(date) {
@@ -67,15 +74,23 @@ function dsoTargetLabel(target) {
 
 // "Alignment" catalog entries (NCP/SCP) are consumed by Polar Align, not
 // this list — they're fixed reference points, not shoot targets.
+//
+// database/database.js stores every entry's RA in degrees (0-360), but
+// getTargetPeakAltitude()/astronomy-engine's Horizon() take RA in sidereal
+// hours (0-24) — the parameter is literally named raHours. Converting here,
+// at this single call site, rather than rewriting all 198 catalog entries:
+// this is the only place RA is read from the catalog for altitude/time math
+// (the galactic core and celestial pole use their own hardcoded/irrelevant
+// RA values, unaffected).
 function getDsoTargets(darkness, lat, lon) {
   return DSO_DATABASE.filter((entry) => entry.type !== "Alignment")
-    .map((entry) => ({ ...entry, ...getTargetPeakAltitude(darkness, lat, lon, entry.ra, entry.dec) }))
+    .map((entry) => ({ ...entry, ...getTargetPeakAltitude(darkness, lat, lon, entry.ra / 15, entry.dec) }))
     .filter((entry) => entry.peakAltitude !== null && entry.peakAltitude > DSO_MIN_ALTITUDE)
     .sort((a, b) => b.peakAltitude - a.peakAltitude);
 }
 
 function computeDashboard(state) {
-  const date = parseDateInput(state.dateValue);
+  const date = parseCalendarDate(state.dateValue);
   const { lat, lon } = state.location;
   const darkness = getDarknessWindow(date, lat, lon);
   const moon = getMoonInfo(date, lat, lon, darkness.duskStart, darkness.dawnEnd);
@@ -314,7 +329,7 @@ function searchResultsMarkup(state) {
     .map(
       (r, i) => `
         <li class="pt-planner-search-result" data-result-index="${i}">
-          ${icon("mapPin")}<span>${r.name}</span>
+          ${icon("mapPin")}<span>${escapeHtml(r.name)}</span>
         </li>`
     )
     .join("");
@@ -326,12 +341,14 @@ function effectiveCountryCode(state) {
 
 function searchMarkup(state) {
   const scopeLabel =
-    !state.searchWorldwide && state.location.countryName ? `Results scoped to ${state.location.countryName}` : "Searching worldwide";
+    !state.searchWorldwide && state.location.countryName
+      ? `Results scoped to ${escapeHtml(state.location.countryName)}`
+      : "Searching worldwide";
   return `
     <div class="pt-planner-search">
       <div class="pt-planner-search-input-wrap">
         ${icon("search", "pt-planner-search-icon")}
-        <input type="text" class="pt-planner-search-input" data-location-input placeholder="Search for a place…" autocomplete="off" value="${state.searchQuery}" />
+        <input type="text" class="pt-planner-search-input" data-location-input placeholder="Search for a place…" autocomplete="off" value="${escapeHtml(state.searchQuery)}" />
       </div>
       <div class="pt-planner-search-scope">
         <span>${scopeLabel}</span>
@@ -346,11 +363,12 @@ function searchMarkup(state) {
 
 function controlsMarkup(state) {
   const locationLabel = state.locationStatus === "locating" ? "Locating…" : state.location.name;
+  const fallbackClass = state.locationStatus === "fallback" ? " pt-planner-location-name--fallback" : "";
   return `
     <section class="pt-planner-controls">
       <div class="pt-planner-location">
         ${icon("mapPin", "pt-planner-location-icon")}
-        <span class="pt-planner-location-name">${locationLabel}</span>
+        <span class="pt-planner-location-name${fallbackClass}" title="${escapeHtml(locationLabel)}">${escapeHtml(locationLabel)}</span>
         <button class="pt-planner-location-change" data-toggle-search type="button">${state.searchOpen ? "Cancel" : "Change"}</button>
       </div>
       ${state.searchOpen ? searchMarkup(state) : ""}
@@ -510,10 +528,15 @@ export function renderAstroPlanner(container) {
         .then((r) => ({ lat, lon, name: r.name, countryCode: r.countryCode, countryName: r.countryName }))
         .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, countryCode: null, countryName: null }))
     )
-    .catch(() => ({ ...DEFAULT_LOCATION }))
     .then((location) => {
       state.location = location;
       state.locationStatus = "resolved";
+      render();
+    })
+    .catch((err) => {
+      console.warn("[astroPlanner] auto-locate failed, falling back to default location", err);
+      state.location = { ...FALLBACK_LOCATION };
+      state.locationStatus = "fallback";
       render();
     });
 }
