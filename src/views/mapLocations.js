@@ -4,16 +4,14 @@ import { icon } from "../icons.js";
 import { getTool } from "../tools.config.js";
 import { navigate } from "../router.js";
 import { getCurrentPosition, createLocationSearch, reverseGeocode } from "../lib/geocode.js";
-import { getAllPins, savePin, updatePinPosition, updatePinAddress, deletePin, createPinId } from "../lib/pinStore.js";
+import { getAllPins, savePin, updatePinPosition, updatePinAddress, deletePin, createPinId, restorePins } from "../lib/pinStore.js";
 import { compressImage } from "../lib/imageCompress.js";
 import { CATEGORIES, categoryById } from "../lib/pinCategories.js";
+import { decodeLocationBackup, encodeLocationBackup, MAX_BACKUP_BYTES } from "../lib/locationBackup.js";
+import { downloadFile, escapeHtml } from "../components/fieldTools.js";
 
 // Matches the default location used by the toolbox's other tools.
 const DEFAULT_LOCATION = { lat: -27.6954, lon: 153.1185 };
-
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-}
 
 function markerIcon(categoryId, draft = false) {
   const cat = categoryById(categoryId);
@@ -40,6 +38,17 @@ function shellMarkup(tool) {
           <span class="pt-tool-title">${tool.name}</span>
         </div>
       </header>
+
+      <details class="pt-map-backup pt-field" data-backup-panel>
+        <summary>Back up locations</summary>
+        <div class="pt-field-actions">
+          <button type="button" class="pt-field-btn" data-export-pins>Export backup</button>
+          <button type="button" class="pt-field-btn" data-import-pins>Restore backup</button>
+          <input type="file" accept=".json,application/json" data-backup-file hidden>
+        </div>
+        <p>Backups include pins, notes and reference photos. Restoring keeps existing pins with the same ID.</p>
+        <p data-backup-status role="status"></p>
+      </details>
 
       <div class="pt-map-wrap">
         <div class="pt-map-canvas" data-map-canvas></div>
@@ -96,6 +105,7 @@ function shellMarkup(tool) {
 function popupMarkup(pin, photoUrl) {
   const cat = categoryById(pin.category);
   const mapsUrl = `https://www.google.com/maps?q=${pin.lat},${pin.lng}`;
+  const pinQuery = new URLSearchParams({ pin: pin.id });
   return `
     <div class="pt-map-popup">
       ${photoUrl ? `<img class="pt-map-popup-photo" src="${photoUrl}" alt="" />` : ""}
@@ -105,6 +115,11 @@ function popupMarkup(pin, photoUrl) {
       </div>
       ${pin.notes ? `<p class="pt-map-popup-notes">"${escapeHtml(pin.notes)}"</p>` : ""}
       ${pin.address ? `<p class="pt-map-popup-address">${icon("mapPin")}<span>${escapeHtml(pin.address)}</span></p>` : ""}
+      <div class="pt-map-popup-planners">
+        <strong>Plan a shoot</strong>
+        <a href="#/tool/sun-planner?${pinQuery}">Sun Planner</a>
+        <a href="#/tool/astro-planner?${pinQuery}">Astro Planner</a>
+      </div>
       <div class="pt-map-popup-actions">
         <a class="pt-map-popup-maps" href="${mapsUrl}" target="_blank" rel="noopener">${icon("externalLink")}<span>Google Maps</span></a>
         <button class="pt-map-popup-delete" data-delete-pin type="button">${icon("trash")}<span>Delete</span></button>
@@ -141,7 +156,8 @@ export function renderMapLocations(container) {
   // once above and updated imperatively from here on — unlike Astro
   // Planner's full re-render-per-state-change pattern, a full innerHTML
   // wipe here would destroy the live Leaflet map instance on every change.
-  const map = L.map(mapCanvasEl, { zoomControl: true }).setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon], 11);
+  const map = L.map(mapCanvasEl, { zoomControl: true, zoomAnimation: false })
+    .setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon], 11);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
@@ -156,6 +172,7 @@ export function renderMapLocations(container) {
 
   function attachPinMarker(pin) {
     if (disposed) return null;
+    if (markersById.has(pin.id)) return markersById.get(pin.id);
     const marker = L.marker([pin.lat, pin.lng], { icon: markerIcon(pin.category), draggable: true }).addTo(map);
     markersById.set(pin.id, marker);
 
@@ -222,6 +239,62 @@ export function renderMapLocations(container) {
       pins.forEach(attachPinMarker);
     })
     .catch((err) => console.error("Failed to load saved pins", err));
+
+  const backupPanel = container.querySelector("[data-backup-panel]");
+  const backupStatus = backupPanel.querySelector("[data-backup-status]");
+  const backupFile = backupPanel.querySelector("[data-backup-file]");
+  const exportButton = backupPanel.querySelector("[data-export-pins]");
+  const importButton = backupPanel.querySelector("[data-import-pins]");
+
+  function setBackupBusy(busy) {
+    exportButton.disabled = busy;
+    importButton.disabled = busy;
+  }
+
+  backupPanel.addEventListener("toggle", () => {
+    if (!disposed) map.invalidateSize();
+  });
+  exportButton.addEventListener("click", async () => {
+    setBackupBusy(true);
+    backupStatus.textContent = "Preparing backup…";
+    try {
+      const pins = await getAllPins();
+      const data = await encodeLocationBackup(pins);
+      if (disposed) return;
+      if (new Blob([data]).size > MAX_BACKUP_BYTES) {
+        backupStatus.textContent = "This backup exceeds the 80 MB file limit.";
+        return;
+      }
+      downloadFile(data, "toolbox-locations.json", "application/json");
+      backupStatus.textContent = `Exported ${pins.length} location(s).`;
+    } catch {
+      backupStatus.textContent = "Couldn’t export locations.";
+    } finally {
+      setBackupBusy(false);
+    }
+  });
+  importButton.addEventListener("click", () => backupFile.click());
+  backupFile.addEventListener("change", async () => {
+    const file = backupFile.files[0];
+    backupFile.value = "";
+    if (!file) return;
+    setBackupBusy(true);
+    backupStatus.textContent = "Reading backup…";
+    try {
+      if (file.size > MAX_BACKUP_BYTES) throw new Error("Backup too large");
+      const pins = decodeLocationBackup(await file.text());
+      if (disposed) return;
+      const added = await restorePins(pins);
+      if (disposed) return;
+      added.forEach(attachPinMarker);
+      if (added.length) map.setView([added[0].lat, added[0].lng], 12);
+      backupStatus.textContent = `Restored ${added.length} location(s). Kept ${pins.length - added.length} existing location(s).`;
+    } catch {
+      backupStatus.textContent = "Couldn’t restore the backup. Choose a Toolbox locations file under 80 MB.";
+    } finally {
+      setBackupBusy(false);
+    }
+  });
 
   getCurrentPosition()
     .then(({ lat, lon }) => {
@@ -391,4 +464,3 @@ export function renderMapLocations(container) {
     map.remove();
   };
 }
-

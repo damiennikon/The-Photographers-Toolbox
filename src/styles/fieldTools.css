@@ -1,0 +1,58 @@
+.pt-field { overflow-wrap: anywhere; }
+.pt-field-stack { display: grid; gap: 12px; }
+.pt-field p, .pt-field h2, .pt-field h3 { margin: 0; }
+.pt-field p { line-height: 1.5; }
+.pt-field [role="status"]:empty { display: none; }
+.pt-field label { display: grid; gap: 6px; font-size: 0.875rem; }
+.pt-field input, .pt-field textarea, .pt-field select {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-sm);
+  color: var(--pt-text);
+  background: var(--pt-bg);
+  font: inherit;
+}
+.pt-field-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr)); gap: 12px; }
+.pt-field-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pt-field-actions[hidden] { display: none; }
+.pt-field-back { text-decoration: none; }
+.pt-field-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-sm);
+  color: var(--pt-text);
+  background: var(--pt-card);
+  font: 600 0.875rem/1.25 var(--pt-font-body);
+  text-decoration: none;
+  cursor: pointer;
+}
+.pt-field-btn:hover:not(:disabled) { border-color: var(--pt-text-muted); }
+.pt-field-btn:disabled { opacity: 0.55; cursor: default; }
+.pt-field-btn[hidden] { display: none; }
+.pt-field-primary { background: var(--pt-accent-dim); }
+.pt-field-dialog {
+  width: min(480px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  padding: 20px;
+  color: var(--pt-text);
+  background: var(--pt-card);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-md);
+}
+.pt-field-dialog::backdrop { background: rgb(0 0 0 / 0.7); }
+.pt-field-eyebrow { color: var(--pt-text-muted); font-size: 0.8rem; }
+.pt-field-notes { white-space: pre-wrap; }
+.pt-field-result { font-size: 1.45rem; font-variant-numeric: tabular-nums; }
+.pt-field-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.pt-field-list li { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid var(--pt-border); }
+.pt-map-backup { flex: none; padding: 8px 12px; background: var(--pt-bg); }
+.pt-map-backup p { color: var(--pt-text-muted); font-size: 0.8rem; }
+.pt-map-popup-planners { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0; }
+.pt-alignment-hint { justify-content: space-between; padding: 8px; }

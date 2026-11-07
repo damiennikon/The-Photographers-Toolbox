@@ -2,7 +2,18 @@
 
 A hub PWA that houses photography / astrophotography tools as tiles, opened
 full-screen inside the shell. Astro Planner, Map Locations, and Sun Planner
-are native views; the other tools remain embedded external applications.
+are native views, alongside My Shoots and the ND Filter & Timer. AstroWeather,
+DSO Search, and Spotters Log are embedded external applications.
+
+Open a saved map pin in either planner to save a shoot with its local time,
+direction, and notes. My Shoots keeps plans on the current device and exports
+calendar events. After an online visit to the production app has installed the
+offline shell, saved plans and native calculations can be opened without a
+connection. Map tiles, online search, and embedded tools may require internet.
+
+Map Locations can export and restore pins, notes, and reference photos. A
+restore leaves existing pins with matching IDs in place. Location backups do
+not include My Shoots.
 
 ## Develop
 
@@ -66,12 +77,10 @@ python scripts/process_tile_images.py
 ## Icons
 
 `public/icons/*.png` (16/32 favicon, 180 Apple touch icon, 192/512 manifest
-icons) are static designed assets, referenced from `index.html` and
-`public/manifest.json`. Replace them directly (matching filename/size) if
-the logo changes — there's no generation step. `public/sw.js`'s
-`SHELL_ASSETS` list also names them explicitly; bump `CACHE_VERSION` there
-when replacing them so existing installs' cache-first service worker picks
-up the new files instead of serving the old ones indefinitely.
+icons) are static assets referenced from `index.html` and `public/manifest.json`.
+Replace them directly (matching filename/size) if the logo changes. The
+production build generates `sw.js` from `src/sw.js` and precaches the app
+shell, built bundles, icons, and tile artwork.
 
 ## Current boundaries
 
@@ -79,4 +88,3 @@ up the new files instead of serving the old ones indefinitely.
 - Shared auth/state between tools
 - Real settings functionality
 - Unified caching across embedded tools (each keeps its own service worker)
-

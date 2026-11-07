@@ -4,10 +4,15 @@ import { icon } from "../icons.js";
 import { getTool } from "../tools.config.js";
 import { navigate } from "../router.js";
 import { getSunPosition, getSunTimes, parseCalendarDate } from "../lib/astroCalc.js";
-import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
-import { getAllPins } from "../lib/pinStore.js";
+import { createLocationSearch, getCurrentPlannerLocation } from "../lib/geocode.js";
+import { getAllPins, getPin } from "../lib/pinStore.js";
 import { categoryById } from "../lib/pinCategories.js";
-import { formatTimeInZone, getTimeZone, parseLocalDateTime } from "../lib/timezone.js";
+import { clockInZone, dateInZone, formatTimeInZone, getTimeZone, parseLocalDateTime } from "../lib/timezone.js";
+import { locationFromPin, shootingWindow } from "../lib/shootPlan.js";
+import { openSaveShoot } from "../components/saveShoot.js";
+import { escapeHtml } from "../components/fieldTools.js";
+import { alignmentMarkup, mountAlignment } from "../components/shotAlignment.js";
+import { signedAngle } from "../lib/shotAlignment.js";
 
 // Matches the default location used by the toolbox's other tools.
 const DEFAULT_LOCATION = {
@@ -53,20 +58,6 @@ function destinationPoint(lat, lon, bearingDeg, distanceKm) {
   const lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(dR) * Math.cos(lat1), Math.cos(dR) - Math.sin(lat1) * Math.sin(lat2));
 
   return { lat: (lat2 * 180) / Math.PI, lon: (((((lon2 * 180) / Math.PI) + 540) % 360) - 180) };
-}
-
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-}
-
-function todayInputValue() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function nowInputValue() {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 // Builds the exact selected instant (date + clock time) for getSunPosition,
@@ -229,7 +220,7 @@ function locationPanelMarkup(state) {
 }
 
 function controlsMarkup(state) {
-  const locationLabel = state.locationStatus === "locating" ? "Locating…" : state.location.name;
+  const locationLabel = state.locationStatus === "locating" ? state.locatingLabel : state.location.name;
   const fallbackClass = state.locationStatus === "fallback" ? " pt-planner-location-name--fallback" : "";
   return `
     <section class="pt-planner-controls">
@@ -269,16 +260,24 @@ function shellMarkup(tool) {
       <div class="pt-planner-scroll">
         <div class="pt-planner">
           <div data-controls></div>
+          <div class="pt-field-actions">
+            <button type="button" class="pt-field-btn pt-field-primary" data-save-shoot disabled>Save a shoot</button>
+            <a class="pt-field-btn" href="#/tool/my-shoots">My Shoots</a>
+          </div>
           <section class="pt-card pt-planner-map-card">
+            <div class="pt-field-actions pt-alignment-hint" data-alignment-hint hidden>
+              <span></span><button type="button" class="pt-field-btn">Cancel</button>
+            </div>
             <div class="pt-planner-map-canvas" data-map-canvas></div>
           </section>
+          ${alignmentMarkup()}
           <div data-info-cards></div>
         </div>
       </div>
     </div>`;
 }
 
-export function renderSunPlanner(container) {
+export function renderSunPlanner(container, query = new URLSearchParams()) {
   const tool = getTool("sun-planner");
   if (!tool) {
     navigate("/");
@@ -286,11 +285,17 @@ export function renderSunPlanner(container) {
   }
 
   let disposed = false;
+  let dateChosen = false;
+  let timeChosen = false;
+  let locationRequest = 0;
+  const pinId = query.get("pin");
+  const now = new Date();
   const state = {
-    dateValue: todayInputValue(),
-    timeValue: nowInputValue(),
+    dateValue: dateInZone(now, DEFAULT_LOCATION.timeZone),
+    timeValue: clockInZone(now, DEFAULT_LOCATION.timeZone),
     location: { ...DEFAULT_LOCATION },
     locationStatus: "locating",
+    locatingLabel: pinId ? "Loading saved location…" : "Locating…",
     searchOpen: false,
     searchQuery: "",
     searchWorldwide: false,
@@ -305,13 +310,15 @@ export function renderSunPlanner(container) {
   const controlsEl = container.querySelector("[data-controls]");
   const infoCardsEl = container.querySelector("[data-info-cards]");
   const mapCanvasEl = container.querySelector("[data-map-canvas]");
+  const saveButton = container.querySelector("[data-save-shoot]");
 
   // Map lives outside the imperatively-updated controls/info-cards markup so
   // re-rendering either of those (on every date/time/location change) never
   // touches — and so never destroys — the live Leaflet instance, following
   // Map Locations' render-shell-once-then-patch pattern rather than Astro
   // Planner's full re-render-per-change one.
-  const map = L.map(mapCanvasEl, { zoomControl: true }).setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon], MAP_INIT_ZOOM);
+  const map = L.map(mapCanvasEl, { zoomControl: true, zoomAnimation: false })
+    .setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon], MAP_INIT_ZOOM);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
@@ -319,6 +326,20 @@ export function renderSunPlanner(container) {
 
   const marker = L.marker([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon], { icon: markerIcon() }).addTo(map);
   let sunLine = null;
+  const refreshAlignment = mountAlignment(container, map, state, selectLocation);
+
+  saveButton.addEventListener("click", () => {
+    const { location, dateValue, timeValue } = state;
+    const positionAt = (time) => time && getSunPosition(time, location.lat, location.lon).azimuthDeg;
+    const { sun, times } = computeDashboard(state);
+    openSaveShoot(saveButton, location, "sun", [
+      shootingWindow("Selected time", parseDateTimeInput(dateValue, timeValue, location.timeZone), null, sun.azimuthDeg),
+      shootingWindow("Sunrise through morning golden hour", times.sunrise, times.goldenHourEnd, positionAt(times.sunrise)),
+      shootingWindow("Evening golden hour through sunset", times.goldenHour, times.sunset, positionAt(times.goldenHour)),
+      shootingWindow("Morning blue hour", times.blueHourMorningStart, times.blueHourMorningEnd, positionAt(times.blueHourMorningStart)),
+      shootingWindow("Evening blue hour", times.blueHourEveningStart, times.blueHourEveningEnd, positionAt(times.blueHourEveningStart)),
+    ]);
+  });
 
   function markerIcon() {
     return L.divIcon({
@@ -343,7 +364,7 @@ export function renderSunPlanner(container) {
     sunLine = L.polyline(
       [
         [lat, lon],
-        [dest.lat, dest.lon],
+        [dest.lat, lon + signedAngle(dest.lon - lon)],
       ],
       {
         color: belowHorizon ? "#8a9ab0" : "#e0a83f",
@@ -394,29 +415,28 @@ export function renderSunPlanner(container) {
     bindResultClicks();
   }
 
-  // Patches the location name in place (used by the auto-locate flow, which
-  // updates controlsEl's live DOM directly rather than going through
-  // renderControls) so a fallback result gets the same visual distinction —
-  // amber text + title tooltip — as a fresh renderControls() call would give it.
-  function applyLocationName(name, isFallback) {
-    const nameEl = controlsEl.querySelector("[data-location-name]");
-    if (!nameEl) return;
-    nameEl.textContent = name;
-    nameEl.title = name;
-    nameEl.classList.toggle("pt-planner-location-name--fallback", isFallback);
-  }
-
-  function selectLocation(location) {
+  function selectLocation(location, status = "resolved", preserveSearch = false) {
     if (disposed) return;
+    locationRequest += 1;
     state.location = { ...location, timeZone: location.timeZone || getTimeZone(location.lat, location.lon) };
-    state.locationStatus = "resolved";
-    state.searchOpen = false;
-    state.searchWorldwide = false;
-    state.searchResults = [];
-    state.searchQuery = "";
+    state.locationStatus = status;
+    const now = new Date();
+    if (!dateChosen) state.dateValue = dateInZone(now, state.location.timeZone);
+    if (!timeChosen) state.timeValue = clockInZone(now, state.location.timeZone);
+    if (!preserveSearch) {
+      state.searchOpen = false;
+      state.searchWorldwide = false;
+      state.searchResults = [];
+      state.searchQuery = "";
+      state.searchLoading = false;
+      state.searchError = false;
+      searchDebounced.cancel();
+    }
+    saveButton.disabled = false;
     renderControls();
     updateMap(true);
     renderInfoCards();
+    refreshAlignment();
   }
 
   function bindResultClicks() {
@@ -434,7 +454,7 @@ export function renderSunPlanner(container) {
       el.addEventListener("click", () => {
         const pin = state.pins[Number(el.dataset.pinIndex)];
         if (!pin) return;
-        selectLocation({ lat: pin.lat, lon: pin.lng, name: pin.name, timeZone: getTimeZone(pin.lat, pin.lng), countryCode: null, countryName: null });
+        selectLocation(locationFromPin(pin));
       });
     });
   }
@@ -481,14 +501,14 @@ export function renderSunPlanner(container) {
     if (currentLocationBtn) {
       currentLocationBtn.addEventListener("click", () => {
         currentLocationBtn.disabled = true;
-        getCurrentPosition()
-          .then(({ lat, lon }) =>
-            reverseGeocode(lat, lon)
-              .then((r) => ({ lat, lon, name: r.name, timeZone: r.timeZone, countryCode: r.countryCode, countryName: r.countryName }))
-              .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, timeZone: getTimeZone(lat, lon), countryCode: null, countryName: null }))
-          )
-          .then(selectLocation)
+        const request = ++locationRequest;
+        getCurrentPlannerLocation()
+          .then((location) => {
+            if (request === locationRequest) selectLocation(location);
+          })
           .catch(() => {
+            if (disposed || request !== locationRequest) return;
+            if (state.locationStatus === "locating") selectLocation(FALLBACK_LOCATION, "fallback", true);
             currentLocationBtn.disabled = false;
           });
       });
@@ -510,13 +530,16 @@ export function renderSunPlanner(container) {
     });
 
     controlsEl.querySelector("[data-date-input]").addEventListener("change", (e) => {
-      state.dateValue = e.target.value || todayInputValue();
+      dateChosen = Boolean(e.target.value);
+      state.dateValue = e.target.value || dateInZone(new Date(), state.location.timeZone);
       updateMap(false);
       renderInfoCards();
+      refreshAlignment();
     });
 
     controlsEl.querySelector("[data-time-input]").addEventListener("change", (e) => {
-      state.timeValue = e.target.value || nowInputValue();
+      timeChosen = Boolean(e.target.value);
+      state.timeValue = e.target.value || clockInZone(new Date(), state.location.timeZone);
       updateMap(false);
       renderInfoCards();
     });
@@ -534,28 +557,24 @@ export function renderSunPlanner(container) {
     })
     .catch((err) => console.error("Failed to load saved pins", err));
 
-  getCurrentPosition()
-    .then(({ lat, lon }) =>
-      reverseGeocode(lat, lon)
-        .then((r) => ({ lat, lon, name: r.name, timeZone: r.timeZone, countryCode: r.countryCode, countryName: r.countryName }))
-        .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, timeZone: getTimeZone(lat, lon), countryCode: null, countryName: null }))
-    )
+  const request = ++locationRequest;
+  const initialLocation = pinId
+    ? getPin(pinId).then((pin) => {
+      if (!pin) throw new Error("Saved location not found");
+      return locationFromPin(pin);
+    })
+    : getCurrentPlannerLocation();
+  initialLocation
     .then((location) => {
-      if (disposed) return;
-      state.location = location;
-      state.locationStatus = "resolved";
-      applyLocationName(location.name, false);
-      updateMap(true);
-      renderInfoCards();
+      if (request === locationRequest) selectLocation(location, "resolved", true);
     })
     .catch((err) => {
-      if (disposed) return;
+      if (disposed || request !== locationRequest) return;
       console.warn("[sunPlanner] auto-locate failed, falling back to default location", err);
-      state.location = { ...FALLBACK_LOCATION };
-      state.locationStatus = "fallback";
-      applyLocationName(state.location.name, true);
-      updateMap(true);
-      renderInfoCards();
+      const fallback = pinId
+        ? { ...DEFAULT_LOCATION, name: `${DEFAULT_LOCATION.name} (saved location unavailable)` }
+        : FALLBACK_LOCATION;
+      selectLocation(fallback, "fallback", true);
     });
 
   container.querySelector("[data-back]").addEventListener("click", () => {
@@ -568,4 +587,3 @@ export function renderSunPlanner(container) {
     map.remove();
   };
 }
-

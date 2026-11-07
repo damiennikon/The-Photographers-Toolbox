@@ -151,3 +151,11 @@ export async function getCurrentPosition(options = { timeout: DEFAULT_TIMEOUT_MS
   }
 }
 
+export async function getCurrentPlannerLocation() {
+  const { lat, lon } = await getCurrentPosition();
+  try {
+    return { ...await reverseGeocode(lat, lon), lat, lon };
+  } catch {
+    return { lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, timeZone: getTimeZone(lat, lon) };
+  }
+}
