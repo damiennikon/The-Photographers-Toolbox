@@ -88,6 +88,7 @@ let planeTiltDeg = 0;
 let location = null;
 let bandEnabled = true;
 let mode = AR_MODES.milkyway;
+let arSession = 0;
 
 function render() {
   return `
@@ -223,9 +224,15 @@ function handleOrientation(event) {
   }
 }
 
-async function requestWakeLockSafe() {
+async function requestWakeLockSafe(session) {
   try {
-    if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
+    if (!("wakeLock" in navigator)) return;
+    const lock = await navigator.wakeLock.request("screen");
+    if (session !== arSession) {
+      await lock.release().catch(() => {});
+      return;
+    }
+    wakeLock = lock;
   } catch {
     // non-fatal — AR still works, the screen may just dim/sleep during use
   }
@@ -248,6 +255,10 @@ function stopCamera() {
 }
 
 async function openAR(currentLocation, arMode) {
+  // Close any existing session before starting a new one. The incremented
+  // session token also invalidates an in-flight camera/orientation request.
+  closeNightAR();
+  const session = arSession;
   ensureMounted();
   location = currentLocation;
   mode = arMode;
@@ -279,8 +290,14 @@ async function openAR(currentLocation, arMode) {
   }
 
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    const acquiredStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    if (session !== arSession) {
+      acquiredStream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    stream = acquiredStream;
   } catch {
+    if (session !== arSession) return;
     setStatus(mode.cameraDeniedText);
     return;
   }
@@ -293,6 +310,7 @@ async function openAR(currentLocation, arMode) {
   } catch {
     permission = "denied";
   }
+  if (session !== arSession) return;
   if (permission !== "granted") {
     setStatus(mode.orientationDeniedText);
     stopCamera();
@@ -301,13 +319,15 @@ async function openAR(currentLocation, arMode) {
   setStatus("");
 
   fetchMagneticDeclination(location.lat, location.lon).then((value) => {
+    if (session !== arSession) return;
     declination = value;
   });
 
+  if (session !== arSession) return;
   updateTargetPosition();
   ephemerisTimer = setInterval(updateTargetPosition, EPHEMERIS_REFRESH_MS);
   stopOrientation = startOrientationListener(handleOrientation);
-  requestWakeLockSafe();
+  requestWakeLockSafe(session);
 }
 
 export function openNightAR(currentLocation) {
@@ -327,6 +347,7 @@ export function openPolarAlign(currentLocation) {
 }
 
 export function closeNightAR() {
+  arSession += 1;
   if (ephemerisTimer) {
     clearInterval(ephemerisTimer);
     ephemerisTimer = null;
@@ -341,3 +362,4 @@ export function closeNightAR() {
   smoothedHeading = null;
   if (root) root.querySelector("[data-ar-overlay]").style.display = "none";
 }
+

@@ -1,8 +1,8 @@
 # The Photographer's Toolbox
 
 A hub PWA that houses photography / astrophotography tools as tiles, opened
-full-screen inside the shell. Stage 1: shell + iframe embedding only — no
-tool code is migrated in yet.
+full-screen inside the shell. Astro Planner, Map Locations, and Sun Planner
+are native views; the other tools remain embedded external applications.
 
 ## Develop
 
@@ -17,6 +17,8 @@ npm run dev
 npm run build
 npm run preview
 ```
+
+Run the focused unit checks with `npm test`.
 
 ## Deploy
 
@@ -71,10 +73,10 @@ the logo changes — there's no generation step. `public/sw.js`'s
 when replacing them so existing installs' cache-first service worker picks
 up the new files instead of serving the old ones indefinitely.
 
-## Explicitly out of scope for Stage 1
+## Current boundaries
 
-- Native migration of any tool's code into this shell
+- Native migration of the external tools' code into this shell
 - Shared auth/state between tools
 - Real settings functionality
-- Astro Planner build-out (placeholder only)
 - Unified caching across embedded tools (each keeps its own service worker)
+

@@ -7,9 +7,17 @@ import { getSunPosition, getSunTimes, parseCalendarDate } from "../lib/astroCalc
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
 import { getAllPins } from "../lib/pinStore.js";
 import { categoryById } from "../lib/pinCategories.js";
+import { formatTimeInZone, getTimeZone, parseLocalDateTime } from "../lib/timezone.js";
 
 // Matches the default location used by the toolbox's other tools.
-const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185, countryCode: "au", countryName: "Australia" };
+const DEFAULT_LOCATION = {
+  name: "Loganholme, QLD",
+  lat: -27.6954,
+  lon: 153.1185,
+  timeZone: getTimeZone(-27.6954, 153.1185),
+  countryCode: "au",
+  countryName: "Australia",
+};
 
 // Used only when auto-locate genuinely fails and we fall back to
 // DEFAULT_LOCATION, so the fallback is visibly distinct from a real fix
@@ -65,26 +73,22 @@ function nowInputValue() {
 // which wants the user's real chosen time, not a day-boundary-safe stand-in
 // — suncalc's getPosition() computes directly from this instant with no
 // day-rounding step, so unlike getSunTimes() below it was never affected by
-// the day-boundary bug (see parseCalendarDate in astroCalc.js). Like the
-// rest of the app, this builds a plain local-system-time Date; there's no
-// location-timezone lookup dependency here, so a selected time is
-// interpreted in the browser's own timezone, not the target location's —
-// the same limitation Astro Planner's "night of" date already has.
-function parseDateTimeInput(dateValue, timeValue) {
-  const [y, m, d] = dateValue.split("-").map(Number);
-  const [h, min] = (timeValue || "00:00").split(":").map(Number);
-  return new Date(y, m - 1, d, h, min);
+// the day-boundary bug (see parseCalendarDate in astroCalc.js). This builds
+// the instant in the selected location's IANA timezone so both the
+// calculation and displayed event times use the place being planned rather
+// than the device's timezone.
+function parseDateTimeInput(dateValue, timeValue, timeZone) {
+  return parseLocalDateTime(dateValue, timeValue || "00:00", timeZone);
 }
 
-function formatTime(date) {
-  if (!date) return "—";
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+function formatTime(date, timeZone) {
+  return formatTimeInZone(date, timeZone);
 }
 
 function computeDashboard(state) {
   const { lat, lon } = state.location;
-  const sun = getSunPosition(parseDateTimeInput(state.dateValue, state.timeValue), lat, lon);
-  const times = getSunTimes(parseCalendarDate(state.dateValue), lat, lon);
+  const sun = getSunPosition(parseDateTimeInput(state.dateValue, state.timeValue, state.location.timeZone), lat, lon);
+  const times = getSunTimes(parseCalendarDate(state.dateValue, state.location.timeZone), lat, lon, state.location.timeZone);
   return { sun, times };
 }
 
@@ -107,45 +111,45 @@ function sunPositionCardMarkup(sun) {
     </section>`;
 }
 
-function sunTimesCardMarkup(times) {
+function sunTimesCardMarkup(times, timeZone) {
   return `
     <section class="pt-card">
       <div class="pt-card-head">${icon("sunrise", "pt-card-icon")}<h3>Sunrise &amp; Sunset</h3></div>
       <div class="pt-planner-stat-row">
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Sunrise</span>
-          <span class="pt-planner-stat-value">${formatTime(times.sunrise)}</span>
+        <span class="pt-planner-stat-value">${formatTime(times.sunrise, timeZone)}</span>
         </div>
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Solar Noon</span>
-          <span class="pt-planner-stat-value">${formatTime(times.solarNoon)}</span>
+        <span class="pt-planner-stat-value">${formatTime(times.solarNoon, timeZone)}</span>
         </div>
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Sunset</span>
-          <span class="pt-planner-stat-value">${formatTime(times.sunset)}</span>
+        <span class="pt-planner-stat-value">${formatTime(times.sunset, timeZone)}</span>
         </div>
       </div>
     </section>`;
 }
 
-function goldenHourCardMarkup(times) {
+function goldenHourCardMarkup(times, timeZone) {
   return `
     <section class="pt-card">
       <div class="pt-card-head">${icon("sunset", "pt-card-icon")}<h3>Golden Hour</h3></div>
       <div class="pt-planner-stat-row">
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Morning ends</span>
-          <span class="pt-planner-stat-value">${formatTime(times.goldenHourEnd)}</span>
+          <span class="pt-planner-stat-value">${formatTime(times.goldenHourEnd, timeZone)}</span>
         </div>
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Evening starts</span>
-          <span class="pt-planner-stat-value">${formatTime(times.goldenHour)}</span>
+          <span class="pt-planner-stat-value">${formatTime(times.goldenHour, timeZone)}</span>
         </div>
       </div>
     </section>`;
 }
 
-function blueHourCardMarkup(times) {
+function blueHourCardMarkup(times, timeZone) {
   return `
     <section class="pt-card">
       <div class="pt-card-head">${icon("moon", "pt-card-icon")}<h3>Blue Hour</h3></div>
@@ -153,11 +157,11 @@ function blueHourCardMarkup(times) {
       <div class="pt-planner-stat-row">
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Morning</span>
-          <span class="pt-planner-stat-value pt-planner-stat-value--sm">${formatTime(times.blueHourMorningStart)} – ${formatTime(times.blueHourMorningEnd)}</span>
+          <span class="pt-planner-stat-value pt-planner-stat-value--sm">${formatTime(times.blueHourMorningStart, timeZone)} – ${formatTime(times.blueHourMorningEnd, timeZone)}</span>
         </div>
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Evening</span>
-          <span class="pt-planner-stat-value pt-planner-stat-value--sm">${formatTime(times.blueHourEveningStart)} – ${formatTime(times.blueHourEveningEnd)}</span>
+          <span class="pt-planner-stat-value pt-planner-stat-value--sm">${formatTime(times.blueHourEveningStart, timeZone)} – ${formatTime(times.blueHourEveningEnd, timeZone)}</span>
         </div>
       </div>
     </section>`;
@@ -165,7 +169,7 @@ function blueHourCardMarkup(times) {
 
 function infoCardsMarkup(state) {
   const { sun, times } = computeDashboard(state);
-  return [sunPositionCardMarkup(sun), sunTimesCardMarkup(times), goldenHourCardMarkup(times), blueHourCardMarkup(times)].join("");
+  return [sunPositionCardMarkup(sun), sunTimesCardMarkup(times, state.location.timeZone), goldenHourCardMarkup(times, state.location.timeZone), blueHourCardMarkup(times, state.location.timeZone)].join("");
 }
 
 function searchResultsMarkup(state) {
@@ -202,7 +206,7 @@ function effectiveCountryCode(state) {
 
 function locationPanelMarkup(state) {
   const scopeLabel =
-    !state.searchWorldwide && state.location.countryName ? `Results scoped to ${state.location.countryName}` : "Searching worldwide";
+    !state.searchWorldwide && state.location.countryName ? `Results scoped to ${escapeHtml(state.location.countryName)}` : "Searching worldwide";
   return `
     <div class="pt-planner-search">
       <button class="pt-planner-current-location-btn" data-use-current-location type="button">
@@ -281,6 +285,7 @@ export function renderSunPlanner(container) {
     return;
   }
 
+  let disposed = false;
   const state = {
     dateValue: todayInputValue(),
     timeValue: nowInputValue(),
@@ -325,6 +330,7 @@ export function renderSunPlanner(container) {
   }
 
   function updateMap(focus) {
+    if (disposed) return;
     const { lat, lon } = state.location;
     marker.setLatLng([lat, lon]);
     if (focus) map.setView([lat, lon], MAP_FOCUS_ZOOM);
@@ -348,10 +354,12 @@ export function renderSunPlanner(container) {
   }
 
   function renderInfoCards() {
+    if (disposed) return;
     infoCardsEl.innerHTML = infoCardsMarkup(state);
   }
 
   function renderLocationPanel() {
+    if (disposed) return;
     const panel = controlsEl.querySelector("[data-location-panel]");
     if (!panel) return;
     panel.hidden = !state.searchOpen;
@@ -366,16 +374,20 @@ export function renderSunPlanner(container) {
     // showing/hiding it shifts the map's on-page position without Leaflet
     // knowing, which leaves its tile grid stale (blank/misaligned tiles)
     // until told to recheck its container size.
-    requestAnimationFrame(() => map.invalidateSize());
+    requestAnimationFrame(() => {
+      if (!disposed) map.invalidateSize();
+    });
   }
 
   function renderControls() {
+    if (disposed) return;
     controlsEl.innerHTML = controlsMarkup(state);
     bindControlsEvents();
     renderLocationPanel();
   }
 
   function updateResultsList() {
+    if (disposed) return;
     const list = controlsEl.querySelector("[data-location-results]");
     if (!list) return;
     list.innerHTML = searchResultsMarkup(state);
@@ -395,7 +407,8 @@ export function renderSunPlanner(container) {
   }
 
   function selectLocation(location) {
-    state.location = location;
+    if (disposed) return;
+    state.location = { ...location, timeZone: location.timeZone || getTimeZone(location.lat, location.lon) };
     state.locationStatus = "resolved";
     state.searchOpen = false;
     state.searchWorldwide = false;
@@ -421,15 +434,21 @@ export function renderSunPlanner(container) {
       el.addEventListener("click", () => {
         const pin = state.pins[Number(el.dataset.pinIndex)];
         if (!pin) return;
-        selectLocation({ lat: pin.lat, lon: pin.lng, name: pin.name, countryCode: null, countryName: null });
+        selectLocation({ lat: pin.lat, lon: pin.lng, name: pin.name, timeZone: getTimeZone(pin.lat, pin.lng), countryCode: null, countryName: null });
       });
     });
   }
 
   const searchDebounced = createLocationSearch((results) => {
+    if (disposed) return;
     state.searchLoading = false;
     state.searchError = false;
     state.searchResults = results;
+    updateResultsList();
+  }, 700, () => {
+    if (disposed) return;
+    state.searchLoading = false;
+    state.searchError = true;
     updateResultsList();
   });
 
@@ -465,8 +484,8 @@ export function renderSunPlanner(container) {
         getCurrentPosition()
           .then(({ lat, lon }) =>
             reverseGeocode(lat, lon)
-              .then((r) => ({ lat, lon, name: r.name, countryCode: r.countryCode, countryName: r.countryName }))
-              .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, countryCode: null, countryName: null }))
+              .then((r) => ({ lat, lon, name: r.name, timeZone: r.timeZone, countryCode: r.countryCode, countryName: r.countryName }))
+              .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, timeZone: getTimeZone(lat, lon), countryCode: null, countryName: null }))
           )
           .then(selectLocation)
           .catch(() => {
@@ -509,6 +528,7 @@ export function renderSunPlanner(container) {
 
   getAllPins()
     .then((pins) => {
+      if (disposed) return;
       state.pins = pins;
       if (state.searchOpen) renderLocationPanel();
     })
@@ -517,10 +537,11 @@ export function renderSunPlanner(container) {
   getCurrentPosition()
     .then(({ lat, lon }) =>
       reverseGeocode(lat, lon)
-        .then((r) => ({ lat, lon, name: r.name, countryCode: r.countryCode, countryName: r.countryName }))
-        .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, countryCode: null, countryName: null }))
+        .then((r) => ({ lat, lon, name: r.name, timeZone: r.timeZone, countryCode: r.countryCode, countryName: r.countryName }))
+        .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, timeZone: getTimeZone(lat, lon), countryCode: null, countryName: null }))
     )
     .then((location) => {
+      if (disposed) return;
       state.location = location;
       state.locationStatus = "resolved";
       applyLocationName(location.name, false);
@@ -528,6 +549,7 @@ export function renderSunPlanner(container) {
       renderInfoCards();
     })
     .catch((err) => {
+      if (disposed) return;
       console.warn("[sunPlanner] auto-locate failed, falling back to default location", err);
       state.location = { ...FALLBACK_LOCATION };
       state.locationStatus = "fallback";
@@ -537,7 +559,13 @@ export function renderSunPlanner(container) {
     });
 
   container.querySelector("[data-back]").addEventListener("click", () => {
-    map.remove();
     navigate("/");
   });
+
+  return () => {
+    disposed = true;
+    searchDebounced.cancel();
+    map.remove();
+  };
 }
+

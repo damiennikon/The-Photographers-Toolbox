@@ -2,24 +2,20 @@
 // and Sun Planner.
 import { getTimes, getPosition, getMoonPosition, getMoonTimes } from "suncalc";
 import { Observer, Horizon } from "astronomy-engine";
+import { addLocalCalendarDays, getTimeZoneOffsetMinutes, parseLocalDateTime } from "./timezone.js";
 
 // Parses a "YYYY-MM-DD" <input type="date"> value into a Date representing
-// that calendar day, anchored at local noon rather than midnight.
+// that calendar day at local noon in the selected location's IANA timezone.
 // getDarknessWindow/getSunTimes below (and getMoonTimes, via getMoonInfo)
 // all key off suncalc's day-boundary rounding, which resolves to the solar
-// day containing whatever instant it's handed. Local midnight sits exactly
-// on the boundary between two solar days, so the rounding was tipping it to
-// the *previous* one at every longitude — Astro Planner was always off by a
-// full day, and Sun Planner was off whenever the selected time was before
-// roughly 10-11am local. Local noon is unambiguously inside the intended
-// solar day instead. Shared by both planners so this is fixed in one place
-// rather than two divergent copies of the same date construction; a
+// day containing whatever instant it's handed. Local noon is unambiguously
+// inside the intended solar day. Shared by both planners so this is fixed in
+// one place rather than two divergent copies of the same date construction; a
 // caller that needs the user's exact selected clock time (Sun Planner's
 // getSunPosition) should keep building its own Date rather than route
 // through this, since noon would give the wrong live sun position.
-export function parseCalendarDate(value) {
-  const [y, m, d] = value.split("-").map(Number);
-  return new Date(y, m - 1, d, 12);
+export function parseCalendarDate(value, timeZone) {
+  return parseLocalDateTime(value, "12:00", timeZone);
 }
 
 // Ported from LensLink's getMoonIllumination(). A simple synodic-cycle
@@ -39,15 +35,21 @@ export function getMoonIllumination(date = new Date()) {
 // `date`. suncalc's `night` field is dusk (dark starts) on the given calendar
 // date; `nightEnd` is dawn (dark ends), so dawn is fetched from the following
 // calendar date since it falls after midnight.
-export function getDarknessWindow(date, lat, lon) {
-  const eveningTimes = getTimes(date, lat, lon);
-  const nextDay = new Date(date);
-  nextDay.setDate(nextDay.getDate() + 1);
-  const morningTimes = getTimes(nextDay, lat, lon);
+export function getDarknessWindow(date, lat, lon, timeZone) {
+  const eveningOffset = getTimeZoneOffsetMinutes(date, timeZone);
+  const eveningTimes = getTimes(date, lat, lon, 0, eveningOffset);
+  const nextDay = addLocalCalendarDays(date, 1, timeZone);
+  const morningOffset = getTimeZoneOffsetMinutes(nextDay, timeZone);
+  const morningTimes = getTimes(nextDay, lat, lon, 0, morningOffset);
 
   const duskStart = eveningTimes.night;
   const dawnEnd = morningTimes.nightEnd;
-  const valid = duskStart instanceof Date && !isNaN(duskStart) && dawnEnd instanceof Date && !isNaN(dawnEnd);
+  const valid =
+    duskStart instanceof Date &&
+    !isNaN(duskStart) &&
+    dawnEnd instanceof Date &&
+    !isNaN(dawnEnd) &&
+    dawnEnd.getTime() > duskStart.getTime();
 
   return {
     duskStart: valid ? duskStart : null,
@@ -78,8 +80,8 @@ function refineMoonCrossing(tBelowSide, tAboveSide, lat, lon, belowIsEarlier) {
 // sub-interval of the dark window it's up for (clipped to dusk/dawn at
 // either edge). Sampled every 15 min then refined via binary search, which
 // avoids fiddly rise/set interval-overlap math across midnight.
-export function getMoonInfo(date, lat, lon, duskStart, dawnEnd) {
-  const times = getMoonTimes(date, lat, lon);
+export function getMoonInfo(date, lat, lon, duskStart, dawnEnd, timeZone) {
+  const times = getMoonTimes(date, lat, lon, getTimeZoneOffsetMinutes(date, timeZone));
 
   let upDuringDark = null;
   let overlapStart = null;
@@ -408,8 +410,8 @@ export function getSunPosition(date, lat, lon) {
 // here as dusk -> nauticalDusk (civil twilight's end to nautical twilight's
 // end), the conventional "sky is still blue, sun well below the horizon"
 // window photographers mean by the term.
-export function getSunTimes(date, lat, lon) {
-  const t = getTimes(date, lat, lon);
+export function getSunTimes(date, lat, lon, timeZone) {
+  const t = getTimes(date, lat, lon, 0, getTimeZoneOffsetMinutes(date, timeZone));
   return {
     sunrise: t.sunrise ?? null,
     sunset: t.sunset ?? null,
@@ -426,3 +428,4 @@ export function getSunTimes(date, lat, lon) {
     blueHourEveningEnd: t.nauticalDusk ?? null,
   };
 }
+

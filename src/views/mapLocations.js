@@ -119,6 +119,7 @@ export function renderMapLocations(container) {
     return;
   }
 
+  let disposed = false;
   container.innerHTML = shellMarkup(tool);
 
   const mapCanvasEl = container.querySelector("[data-map-canvas]");
@@ -154,6 +155,7 @@ export function renderMapLocations(container) {
   let lastSearchResults = [];
 
   function attachPinMarker(pin) {
+    if (disposed) return null;
     const marker = L.marker([pin.lat, pin.lng], { icon: markerIcon(pin.category), draggable: true }).addTo(map);
     markersById.set(pin.id, marker);
 
@@ -189,7 +191,7 @@ export function renderMapLocations(container) {
           .then((r) => r.name)
           .catch(() => null)
           .then((address) => {
-            if (!address) return;
+            if (!address || disposed) return;
             pin.address = address;
             updatePinAddress(pin.id, address).catch((err) => console.error("Failed to persist address", err));
             if (marker.isPopupOpen()) renderPopup();
@@ -215,11 +217,16 @@ export function renderMapLocations(container) {
   }
 
   getAllPins()
-    .then((pins) => pins.forEach(attachPinMarker))
+    .then((pins) => {
+      if (disposed) return;
+      pins.forEach(attachPinMarker);
+    })
     .catch((err) => console.error("Failed to load saved pins", err));
 
   getCurrentPosition()
-    .then(({ lat, lon }) => map.setView([lat, lon], 12))
+    .then(({ lat, lon }) => {
+      if (!disposed) map.setView([lat, lon], 12);
+    })
     .catch(() => {
       // Geolocation denied/unavailable — stay at the default SE Queensland center.
     });
@@ -290,11 +297,15 @@ export function renderMapLocations(container) {
   }
 
   const searchDebounced = createLocationSearch((results) => {
+    if (disposed) return;
     lastSearchResults = results;
     searchResultsEl.innerHTML = results
       .map((r, i) => `<li class="pt-planner-search-result" data-search-index="${i}">${icon("mapPin")}<span>${escapeHtml(r.name)}</span></li>`)
       .join("");
     bindSearchResultClicks();
+  }, 700, () => {
+    if (disposed) return;
+    searchResultsEl.innerHTML = `<li class="pt-planner-search-status">Search failed — try again.</li>`;
   });
 
   async function handleSavePin() {
@@ -370,7 +381,14 @@ export function renderMapLocations(container) {
   saveBtn.addEventListener("click", handleSavePin);
 
   container.querySelector("[data-back]").addEventListener("click", () => {
-    map.remove();
     navigate("/");
   });
+
+  return () => {
+    disposed = true;
+    searchDebounced.cancel();
+    window.removeEventListener("keydown", handleEscape);
+    map.remove();
+  };
 }
+

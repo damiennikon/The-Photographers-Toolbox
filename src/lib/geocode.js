@@ -3,6 +3,7 @@
 // Firebase-dependent parts dropped since Astro Planner has no backend.
 // Nominatim usage policy: max ~1 request/sec, no bulk/concurrent requests.
 // https://operations.osmfoundation.org/policies/nominatim/
+import { getTimeZone } from "./timezone.js";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 const MIN_REQUEST_GAP_MS = 1000;
@@ -13,9 +14,15 @@ async function rateLimitedFetch(url) {
   const wait = Math.max(0, lastRequestAt + MIN_REQUEST_GAP_MS - Date.now());
   if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
   lastRequestAt = Date.now();
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`Nominatim request failed: ${res.status}`);
-  return res.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
+    if (!res.ok) throw new Error(`Nominatim request failed: ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function shortName(display) {
@@ -39,6 +46,7 @@ export async function reverseGeocode(lat, lon) {
     name: shortName(data.display_name),
     lat: Number(data.lat),
     lon: Number(data.lon),
+    timeZone: getTimeZone(Number(data.lat), Number(data.lon)),
     countryCode: data.address?.country_code ?? null,
     countryName: data.address?.country ?? null,
   };
@@ -56,6 +64,7 @@ export async function searchLocations(query, countryCode) {
     name: shortName(r.display_name),
     lat: Number(r.lat),
     lon: Number(r.lon),
+    timeZone: getTimeZone(Number(r.lat), Number(r.lon)),
     countryCode: r.address?.country_code ?? null,
     countryName: r.address?.country ?? null,
   }));
@@ -65,11 +74,11 @@ export async function searchLocations(query, countryCode) {
 // with in-flight results from a stale query ignored. `countryCode` is read
 // fresh on each call (not captured at creation) so a region change or the
 // worldwide toggle takes effect on the very next keystroke.
-export function createLocationSearch(onResults, delayMs = 700) {
+export function createLocationSearch(onResults, delayMs = 700, onError = () => {}) {
   let timer = null;
   let requestId = 0;
 
-  return function search(query, countryCode) {
+  function search(query, countryCode) {
     clearTimeout(timer);
     if (!query || query.trim().length < 3) {
       onResults([]);
@@ -81,10 +90,20 @@ export function createLocationSearch(onResults, delayMs = 700) {
         const results = await searchLocations(query, countryCode);
         if (id === requestId) onResults(results);
       } catch {
-        if (id === requestId) onResults([]);
+        if (id === requestId) {
+          onResults([]);
+          onError();
+        }
       }
     }, delayMs);
+  }
+
+  search.cancel = () => {
+    clearTimeout(timer);
+    requestId += 1;
   };
+
+  return search;
 }
 
 function rawGetCurrentPosition(options) {
@@ -131,3 +150,4 @@ export async function getCurrentPosition(options = { timeout: DEFAULT_TIMEOUT_MS
     return await rawGetCurrentPosition({ ...options, timeout: RETRY_TIMEOUT_MS, maximumAge: RETRY_MAX_AGE_MS });
   }
 }
+

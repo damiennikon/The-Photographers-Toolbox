@@ -8,6 +8,12 @@ import { mountNavDrawer } from "./components/navDrawer.js";
 import { getTool } from "./tools.config.js";
 
 const app = document.getElementById("app");
+let disposeCurrentView = null;
+
+function renderView(renderer, ...args) {
+  disposeCurrentView?.();
+  disposeCurrentView = renderer(...args) || null;
+}
 
 mountNavDrawer(document.body);
 
@@ -24,12 +30,12 @@ route(/^\/tool\/(?<id>[\w-]+)$/, ({ id }) => {
   const tool = getTool(id);
   const renderInternal = tool?.type === "internal" ? INTERNAL_VIEWS[tool.id] : null;
   if (renderInternal) {
-    renderInternal(app);
+    renderView(renderInternal, app);
   } else {
-    renderToolView(app, id);
+    renderView(renderToolView, app, id);
   }
 });
-route(/^\/$/, () => renderHome(app));
+route(/^\/$/, () => renderView(renderHome, app));
 notFound(() => navigate("/"));
 
 startRouter();
@@ -41,3 +47,4 @@ if ("serviceWorker" in navigator) {
     });
   });
 }
+
