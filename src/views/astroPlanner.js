@@ -13,11 +13,19 @@ import {
   parseCalendarDate,
 } from "../lib/astroCalc.js";
 import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
-import { openNightAR, openPolarAlign } from "../components/nightAR.js";
+import { closeNightAR, openNightAR, openPolarAlign } from "../components/nightAR.js";
+import { formatTimeInZone, getTimeZone } from "../lib/timezone.js";
 import { DSO_DATABASE } from "../../database/database.js";
 
 // Matches the default location used by the toolbox's other tools.
-const DEFAULT_LOCATION = { name: "Loganholme, QLD", lat: -27.6954, lon: 153.1185, countryCode: "au", countryName: "Australia" };
+const DEFAULT_LOCATION = {
+  name: "Loganholme, QLD",
+  lat: -27.6954,
+  lon: 153.1185,
+  timeZone: getTimeZone(-27.6954, 153.1185),
+  countryCode: "au",
+  countryName: "Australia",
+};
 
 // Used only when auto-locate genuinely fails and we fall back to
 // DEFAULT_LOCATION, so the fallback is visibly distinct from a real fix
@@ -37,9 +45,8 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
-function formatTime(date) {
-  if (!date) return "—";
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+function formatTime(date, timeZone) {
+  return formatTimeInZone(date, timeZone);
 }
 
 function formatDuration(start, end) {
@@ -90,10 +97,10 @@ function getDsoTargets(darkness, lat, lon) {
 }
 
 function computeDashboard(state) {
-  const date = parseCalendarDate(state.dateValue);
+  const date = parseCalendarDate(state.dateValue, state.location.timeZone);
   const { lat, lon } = state.location;
-  const darkness = getDarknessWindow(date, lat, lon);
-  const moon = getMoonInfo(date, lat, lon, darkness.duskStart, darkness.dawnEnd);
+  const darkness = getDarknessWindow(date, lat, lon, state.location.timeZone);
+  const moon = getMoonInfo(date, lat, lon, darkness.duskStart, darkness.dawnEnd, state.location.timeZone);
   const illumination = getMoonIllumination(date);
   const milkyWay = getMilkyWayVisibility(darkness, lat, lon);
   const dsoTargets = getDsoTargets(darkness, lat, lon);
@@ -120,17 +127,17 @@ function moonSeverityTone(illumination) {
 // Plain-language description of when, within the dark window, the moon is
 // up — a moon up for the final 20 minutes of a 10-hour window reads very
 // differently to one up the entire night, even at identical illumination.
-function moonOverlapClause(darkness, moon) {
+function moonOverlapClause(darkness, moon, timeZone) {
   const atDusk = moon.overlapStart.getTime() <= darkness.duskStart.getTime() + 60000;
   const tillDawn = moon.overlapEnd.getTime() >= darkness.dawnEnd.getTime() - 60000;
 
   if (atDusk && tillDawn) return "up the entire night";
-  if (atDusk) return `up for the first ${formatDuration(darkness.duskStart, moon.overlapEnd)} (until ${formatTime(moon.overlapEnd)})`;
-  if (tillDawn) return `up for the final ${formatDuration(moon.overlapStart, darkness.dawnEnd)} (from ${formatTime(moon.overlapStart)})`;
-  return `up for ${formatDuration(moon.overlapStart, moon.overlapEnd)} (${formatTime(moon.overlapStart)}–${formatTime(moon.overlapEnd)})`;
+  if (atDusk) return `up for the first ${formatDuration(darkness.duskStart, moon.overlapEnd)} (until ${formatTime(moon.overlapEnd, timeZone)})`;
+  if (tillDawn) return `up for the final ${formatDuration(moon.overlapStart, darkness.dawnEnd)} (from ${formatTime(moon.overlapStart, timeZone)})`;
+  return `up for ${formatDuration(moon.overlapStart, moon.overlapEnd)} (${formatTime(moon.overlapStart, timeZone)}–${formatTime(moon.overlapEnd, timeZone)})`;
 }
 
-function moonFlag(darkness, moon, illumination) {
+function moonFlag(darkness, moon, illumination, timeZone) {
   if (!darkness.valid || moon.upDuringDark === null) {
     return { tone: "neutral", text: "Can't determine dark-hours moon presence — no true astronomical darkness window for this date/location." };
   }
@@ -139,27 +146,27 @@ function moonFlag(darkness, moon, illumination) {
   }
   return {
     tone: moonSeverityTone(illumination),
-    text: `Moon ${moonOverlapClause(darkness, moon)} at ${illumination}% — ${moonSeverityText(illumination)}.`,
+    text: `Moon ${moonOverlapClause(darkness, moon, timeZone)} at ${illumination}% — ${moonSeverityText(illumination)}.`,
   };
 }
 
-function moonRiseSetText(moon) {
+function moonRiseSetText(moon, timeZone) {
   if (moon.alwaysUp) return "Up all day (circumpolar)";
   if (moon.alwaysDown) return "Doesn't rise this day";
-  return `Rise ${formatTime(moon.rise)} · Set ${formatTime(moon.set)}`;
+  return `Rise ${formatTime(moon.rise, timeZone)} · Set ${formatTime(moon.set, timeZone)}`;
 }
 
-function darknessCardMarkup(darkness) {
+function darknessCardMarkup(darkness, timeZone) {
   const body = darkness.valid
     ? `
       <div class="pt-planner-stat-row">
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Dark starts</span>
-          <span class="pt-planner-stat-value">${formatTime(darkness.duskStart)}</span>
+          <span class="pt-planner-stat-value">${formatTime(darkness.duskStart, timeZone)}</span>
         </div>
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Dark ends</span>
-          <span class="pt-planner-stat-value">${formatTime(darkness.dawnEnd)}</span>
+          <span class="pt-planner-stat-value">${formatTime(darkness.dawnEnd, timeZone)}</span>
         </div>
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Duration</span>
@@ -175,8 +182,8 @@ function darknessCardMarkup(darkness) {
     </section>`;
 }
 
-function moonCardMarkup(darkness, moon, illumination) {
-  const flag = moonFlag(darkness, moon, illumination);
+function moonCardMarkup(darkness, moon, illumination, timeZone) {
+  const flag = moonFlag(darkness, moon, illumination, timeZone);
   return `
     <section class="pt-card">
       <div class="pt-card-head">${icon("moon", "pt-card-icon")}<h3>Moon</h3></div>
@@ -187,7 +194,7 @@ function moonCardMarkup(darkness, moon, illumination) {
         </div>
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Rise / Set</span>
-          <span class="pt-planner-stat-value pt-planner-stat-value--sm">${moonRiseSetText(moon)}</span>
+        <span class="pt-planner-stat-value pt-planner-stat-value--sm">${moonRiseSetText(moon, timeZone)}</span>
         </div>
       </div>
       <div class="pt-planner-flag pt-planner-flag--${flag.tone}">${flag.text}</div>
@@ -206,7 +213,7 @@ function nightArButtonMarkup() {
     <p class="pt-planner-note">Points your camera toward the core's live position right now — independent of the date selected above.</p>`;
 }
 
-function milkyWayCardMarkup(milkyWay) {
+function milkyWayCardMarkup(milkyWay, timeZone) {
   if (!milkyWay.visible) {
     return `
       <section class="pt-card">
@@ -236,11 +243,11 @@ function milkyWayCardMarkup(milkyWay) {
       <div class="pt-planner-stat-row">
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Visible from</span>
-          <span class="pt-planner-stat-value">${formatTime(milkyWay.start)}</span>
+          <span class="pt-planner-stat-value">${formatTime(milkyWay.start, timeZone)}</span>
         </div>
         <div class="pt-planner-stat">
           <span class="pt-planner-stat-label">Visible until</span>
-          <span class="pt-planner-stat-value">${formatTime(milkyWay.end)}</span>
+          <span class="pt-planner-stat-value">${formatTime(milkyWay.end, timeZone)}</span>
         </div>
       </div>
       ${directionNote}
@@ -254,7 +261,7 @@ function milkyWayCardMarkup(milkyWay) {
 // this behind; it's just always there.
 const DSO_TARGETS_COLLAPSED_COUNT = 8;
 
-function dsoTargetRowMarkup(target) {
+function dsoTargetRowMarkup(target, timeZone) {
   return `
     <li class="pt-planner-dso-row">
       <div class="pt-planner-dso-row-main">
@@ -263,12 +270,12 @@ function dsoTargetRowMarkup(target) {
       </div>
       <div class="pt-planner-dso-row-stats">
         <span class="pt-planner-dso-alt">${Math.round(target.peakAltitude)}°</span>
-        <span class="pt-planner-dso-time">${formatTime(target.peakTime)}</span>
+        <span class="pt-planner-dso-time">${formatTime(target.peakTime, timeZone)}</span>
       </div>
     </li>`;
 }
 
-function dsoTargetsCardMarkup(dsoTargets, expanded) {
+function dsoTargetsCardMarkup(dsoTargets, expanded, timeZone) {
   if (!dsoTargets.length) {
     return `
       <section class="pt-card">
@@ -289,7 +296,7 @@ function dsoTargetsCardMarkup(dsoTargets, expanded) {
     <section class="pt-card">
       <div class="pt-card-head">${icon("aperture", "pt-card-icon")}<h3>Tonight's Best DSO Targets</h3></div>
       <p class="pt-planner-note">Above ${DSO_MIN_ALTITUDE}° at some point during the dark window, sorted by peak altitude.</p>
-      <ul class="pt-planner-dso-list">${visible.map(dsoTargetRowMarkup).join("")}</ul>
+      <ul class="pt-planner-dso-list">${visible.map((target) => dsoTargetRowMarkup(target, timeZone)).join("")}</ul>
       ${toggle}
     </section>`;
 }
@@ -386,6 +393,7 @@ export function renderAstroPlanner(container) {
     return;
   }
 
+  let disposed = false;
   const state = {
     dateValue: todayInputValue(),
     location: { ...DEFAULT_LOCATION },
@@ -400,13 +408,20 @@ export function renderAstroPlanner(container) {
   };
 
   const searchDebounced = createLocationSearch((results) => {
+    if (disposed) return;
     state.searchLoading = false;
     state.searchError = false;
     state.searchResults = results;
     updateResultsList();
+  }, 700, () => {
+    if (disposed) return;
+    state.searchLoading = false;
+    state.searchError = true;
+    updateResultsList();
   });
 
   function render() {
+    if (disposed) return;
     const { darkness, moon, illumination, milkyWay, dsoTargets } = computeDashboard(state);
 
     container.innerHTML = `
@@ -425,10 +440,10 @@ export function renderAstroPlanner(container) {
         <div class="pt-planner-scroll">
           <div class="pt-planner">
             ${controlsMarkup(state)}
-            ${darknessCardMarkup(darkness)}
-            ${moonCardMarkup(darkness, moon, illumination)}
-            ${milkyWayCardMarkup(milkyWay)}
-            ${dsoTargetsCardMarkup(dsoTargets, state.dsoExpanded)}
+            ${darknessCardMarkup(darkness, state.location.timeZone)}
+            ${moonCardMarkup(darkness, moon, illumination, state.location.timeZone)}
+            ${milkyWayCardMarkup(milkyWay, state.location.timeZone)}
+            ${dsoTargetsCardMarkup(dsoTargets, state.dsoExpanded, state.location.timeZone)}
             ${polarAlignCardMarkup(state)}
             ${astroWeatherCardMarkup()}
           </div>
@@ -439,6 +454,7 @@ export function renderAstroPlanner(container) {
   }
 
   function updateResultsList() {
+    if (disposed) return;
     const list = container.querySelector("[data-location-results]");
     if (!list) return;
     list.innerHTML = searchResultsMarkup(state);
@@ -450,7 +466,7 @@ export function renderAstroPlanner(container) {
       el.addEventListener("click", () => {
         const result = state.searchResults[Number(el.dataset.resultIndex)];
         if (!result) return;
-        state.location = result;
+        state.location = { ...result, timeZone: result.timeZone || getTimeZone(result.lat, result.lon) };
         state.locationStatus = "resolved";
         state.searchOpen = false;
         state.searchWorldwide = false;
@@ -525,18 +541,27 @@ export function renderAstroPlanner(container) {
   getCurrentPosition()
     .then(({ lat, lon }) =>
       reverseGeocode(lat, lon)
-        .then((r) => ({ lat, lon, name: r.name, countryCode: r.countryCode, countryName: r.countryName }))
-        .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, countryCode: null, countryName: null }))
+        .then((r) => ({ lat, lon, name: r.name, timeZone: r.timeZone, countryCode: r.countryCode, countryName: r.countryName }))
+        .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, timeZone: getTimeZone(lat, lon), countryCode: null, countryName: null }))
     )
     .then((location) => {
+      if (disposed) return;
       state.location = location;
       state.locationStatus = "resolved";
       render();
     })
     .catch((err) => {
+      if (disposed) return;
       console.warn("[astroPlanner] auto-locate failed, falling back to default location", err);
       state.location = { ...FALLBACK_LOCATION };
       state.locationStatus = "fallback";
       render();
     });
+
+  return () => {
+    disposed = true;
+    searchDebounced.cancel();
+    closeNightAR();
+  };
 }
+

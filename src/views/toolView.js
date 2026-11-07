@@ -82,4 +82,11 @@ export function renderToolView(container, toolId) {
   iframe.addEventListener("error", showFallback);
 
   frameWrap.appendChild(iframe);
+
+  return () => {
+    settled = true;
+    clearTimeout(timer);
+    iframe.remove();
+  };
 }
+
