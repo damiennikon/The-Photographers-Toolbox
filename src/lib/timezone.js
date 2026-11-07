@@ -4,7 +4,7 @@ const FALLBACK_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || "
 
 export function getTimeZone(lat, lon) {
   try {
-    return tzlookup(Number(lat), Number(lon));
+    return tzlookup(Number(lat), ((Number(lon) % 360 + 540) % 360) - 180);
   } catch {
     return FALLBACK_TIME_ZONE;
   }
@@ -50,23 +50,35 @@ function utcDateString(year, month, day) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 }
 
+export function dateInZone(date, timeZone) {
+  const { year, month, day } = partsFor(date, timeZone);
+  return utcDateString(year, month, day);
+}
+
+export function clockInZone(date, timeZone) {
+  const { hour, minute } = partsFor(date, timeZone);
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 export function parseLocalDateTime(dateValue, timeValue = "12:00", timeZone = FALLBACK_TIME_ZONE) {
   const [year, month, day] = dateValue.split("-").map(Number);
   const [hour, minute] = timeValue.split(":").map(Number);
   const localAsUtc = Date.UTC(year, month - 1, day, hour, minute);
-  let instant = localAsUtc;
+  const dayMs = 86400000;
+  const before = getTimeZoneOffsetMinutes(new Date(localAsUtc - dayMs), timeZone);
+  const after = getTimeZoneOffsetMinutes(new Date(localAsUtc + dayMs), timeZone);
+  const earlier = new Date(localAsUtc - Math.max(before, after) * 60000);
+  if (getTimeZoneOffsetMinutes(earlier, timeZone) === Math.max(before, after)) return earlier;
+  // A repeated time uses the first occurrence. A skipped time advances by the gap.
+  return new Date(localAsUtc - Math.min(before, after) * 60000);
+}
 
-  // Iterate because the offset itself can change around a daylight-saving
-  // transition. This also keeps the conversion correct for zones that are
-  // not whole-hour offsets.
-  for (let i = 0; i < 4; i += 1) {
-    const offset = getTimeZoneOffsetMinutes(new Date(instant), timeZone);
-    const adjusted = localAsUtc - offset * 60000;
-    if (adjusted === instant) break;
-    instant = adjusted;
-  }
-
-  return new Date(instant);
+export function localDayBounds(date, timeZone) {
+  const { year, month, day } = partsFor(date, timeZone);
+  return [
+    parseLocalDateTime(utcDateString(year, month, day), "00:00", timeZone),
+    parseLocalDateTime(utcDateString(year, month, day + 1), "00:00", timeZone),
+  ];
 }
 
 export function addLocalCalendarDays(date, days, timeZone = FALLBACK_TIME_ZONE) {
@@ -75,8 +87,7 @@ export function addLocalCalendarDays(date, days, timeZone = FALLBACK_TIME_ZONE) 
 }
 
 export function formatTimeInZone(date, timeZone = FALLBACK_TIME_ZONE) {
-  if (!date) return "—";
+  if (!(date instanceof Date) || !Number.isFinite(date.getTime())) return "—";
   return date.toLocaleTimeString([], { timeZone, hour: "2-digit", minute: "2-digit", hour12: false });
 }
-
 

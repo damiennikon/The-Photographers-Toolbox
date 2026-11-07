@@ -3,6 +3,7 @@ import { getTool } from "../tools.config.js";
 import { navigate } from "../router.js";
 import {
   getMilkyWayVisibility,
+  getGalacticCoreAltAz,
   milkyWayCompassDirection,
   MILKY_WAY_MIN_ALTITUDE,
   getMoonIllumination,
@@ -12,9 +13,14 @@ import {
   DSO_MIN_ALTITUDE,
   parseCalendarDate,
 } from "../lib/astroCalc.js";
-import { reverseGeocode, createLocationSearch, getCurrentPosition } from "../lib/geocode.js";
+import { createLocationSearch, getCurrentPlannerLocation } from "../lib/geocode.js";
 import { closeNightAR, openNightAR, openPolarAlign } from "../components/nightAR.js";
-import { formatTimeInZone, getTimeZone } from "../lib/timezone.js";
+import { dateInZone, formatTimeInZone, getTimeZone } from "../lib/timezone.js";
+import { getPin } from "../lib/pinStore.js";
+import { locationFromPin, shootingWindow } from "../lib/shootPlan.js";
+import { openSaveShoot, windowTime } from "../components/saveShoot.js";
+import { escapeHtml } from "../components/fieldTools.js";
+import { CORE_MIN_ALTITUDE, rankNights } from "../lib/bestNights.js";
 import { DSO_DATABASE } from "../../database/database.js";
 
 // Matches the default location used by the toolbox's other tools.
@@ -31,19 +37,6 @@ const DEFAULT_LOCATION = {
 // DEFAULT_LOCATION, so the fallback is visibly distinct from a real fix
 // (see locationStatus "fallback" below) instead of reading as one.
 const FALLBACK_LOCATION = { ...DEFAULT_LOCATION, name: `${DEFAULT_LOCATION.name} (default — location unavailable)` };
-
-function todayInputValue() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-// Same escaping Sun Planner uses (sunPlanner.js:45) for the same job — this
-// view was missing it entirely, which let unescaped geocoder-supplied
-// strings (search results, the search query, location/country names) reach
-// innerHTML verbatim.
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-}
 
 function formatTime(date, timeZone) {
   return formatTimeInZone(date, timeZone);
@@ -369,7 +362,7 @@ function searchMarkup(state) {
 }
 
 function controlsMarkup(state) {
-  const locationLabel = state.locationStatus === "locating" ? "Locating…" : state.location.name;
+  const locationLabel = state.locationStatus === "locating" ? state.locatingLabel : state.location.name;
   const fallbackClass = state.locationStatus === "fallback" ? " pt-planner-location-name--fallback" : "";
   return `
     <section class="pt-planner-controls">
@@ -386,7 +379,25 @@ function controlsMarkup(state) {
     </section>`;
 }
 
-export function renderAstroPlanner(container) {
+function bestNightsMarkup(locating) {
+  return `
+    <section class="pt-card pt-field pt-field-stack">
+      <h3>Best Nights for This Spot</h3>
+      <p>Compare 30 nights from the selected date. Ranked by the longest continuous window of moonless astronomical darkness.</p>
+      <form data-best-nights class="pt-field-stack">
+        <label>What are you shooting?
+          <select name="goal">
+            <option value="core">Milky Way core above ${CORE_MIN_ALTITUDE}°</option>
+            <option value="dark">Moonless darkness</option>
+          </select>
+        </label>
+        <button type="submit" class="pt-field-btn" ${locating ? "disabled" : ""}>Compare nights</button>
+      </form>
+      <div data-night-results class="pt-field-stack"></div>
+    </section>`;
+}
+
+export function renderAstroPlanner(container, query = new URLSearchParams()) {
   const tool = getTool("astro-planner");
   if (!tool) {
     navigate("/");
@@ -394,10 +405,13 @@ export function renderAstroPlanner(container) {
   }
 
   let disposed = false;
+  let dateChosen = false;
+  const pinId = query.get("pin");
   const state = {
-    dateValue: todayInputValue(),
+    dateValue: dateInZone(new Date(), DEFAULT_LOCATION.timeZone),
     location: { ...DEFAULT_LOCATION },
     locationStatus: "locating",
+    locatingLabel: pinId ? "Loading saved location…" : "Locating…",
     searchOpen: false,
     searchQuery: "",
     searchWorldwide: false,
@@ -440,9 +454,15 @@ export function renderAstroPlanner(container) {
         <div class="pt-planner-scroll">
           <div class="pt-planner">
             ${controlsMarkup(state)}
+            <div class="pt-field-actions">
+              <button class="pt-field-btn pt-field-primary" data-save-shoot type="button"
+                ${state.locationStatus === "locating" || !darkness.valid ? "disabled" : ""}>Save a shoot</button>
+              <a class="pt-field-btn" href="#/tool/my-shoots">My Shoots</a>
+            </div>
             ${darknessCardMarkup(darkness, state.location.timeZone)}
             ${moonCardMarkup(darkness, moon, illumination, state.location.timeZone)}
             ${milkyWayCardMarkup(milkyWay, state.location.timeZone)}
+            ${bestNightsMarkup(state.locationStatus === "locating")}
             ${dsoTargetsCardMarkup(dsoTargets, state.dsoExpanded, state.location.timeZone)}
             ${polarAlignCardMarkup(state)}
             ${astroWeatherCardMarkup()}
@@ -450,7 +470,7 @@ export function renderAstroPlanner(container) {
         </div>
       </div>`;
 
-    bindEvents();
+    bindEvents(darkness, milkyWay);
   }
 
   function updateResultsList() {
@@ -468,20 +488,61 @@ export function renderAstroPlanner(container) {
         if (!result) return;
         state.location = { ...result, timeZone: result.timeZone || getTimeZone(result.lat, result.lon) };
         state.locationStatus = "resolved";
+        if (!dateChosen) state.dateValue = dateInZone(new Date(), state.location.timeZone);
         state.searchOpen = false;
         state.searchWorldwide = false;
         state.searchResults = [];
+        state.searchLoading = false;
+        searchDebounced.cancel();
         render();
       });
     });
   }
 
-  function bindEvents() {
+  function bindEvents(darkness, milkyWay) {
     container.querySelector("[data-back]").addEventListener("click", () => navigate("/"));
 
     container.querySelector("[data-date-input]").addEventListener("change", (e) => {
-      state.dateValue = e.target.value || todayInputValue();
+      dateChosen = Boolean(e.target.value);
+      state.dateValue = e.target.value || dateInZone(new Date(), state.location.timeZone);
       render();
+    });
+
+    const saveButton = container.querySelector("[data-save-shoot]");
+    saveButton.addEventListener("click", () => {
+      openSaveShoot(saveButton, state.location, "astro", [
+        shootingWindow("Milky Way core visible", milkyWay.start, milkyWay.end, milkyWay.startAzimuth),
+        shootingWindow("Astronomical darkness", darkness.duskStart, darkness.dawnEnd),
+      ]);
+    });
+
+    container.querySelector("[data-best-nights]").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const { location } = state;
+      const goal = event.currentTarget.elements.goal.value;
+      const requireCore = goal === "core";
+      const nights = rankNights(parseCalendarDate(state.dateValue, location.timeZone), location, requireCore);
+      const results = container.querySelector("[data-night-results]");
+      results.innerHTML = nights.length ? `
+        <p role="status">Top ${Math.min(nights.length, 10)} of ${nights.length} matching nights. Times are local to the spot. Check the weather separately.</p>
+        <ol class="pt-field-list">
+          ${nights.slice(0, 10).map((night, index) => {
+            const window = shootingWindow("Moonless darkness", night.start, night.end);
+            return `<li>
+              <strong>${night.date} · ${formatDuration(night.start, night.end)} moonless${requireCore ? ` with core above ${CORE_MIN_ALTITUDE}°` : ""}</strong>
+              <span>${escapeHtml(windowTime(window, location.timeZone))}</span>
+              <button class="pt-field-btn" data-save-night="${index}" type="button">Save this window</button>
+            </li>`;
+          }).join("")}
+        </ol>` : '<p role="status">No matching window in these 30 nights. Try moonless darkness or a different start date.</p>';
+      results.querySelectorAll("[data-save-night]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const night = nights[Number(button.dataset.saveNight)];
+          const bearing = requireCore ? getGalacticCoreAltAz(night.start, location.lat, location.lon).azimuth : null;
+          const label = requireCore ? `Moonless Milky Way core above ${CORE_MIN_ALTITUDE}°` : "Moonless astronomical darkness";
+          openSaveShoot(button, location, "astro", [shootingWindow(label, night.start, night.end, bearing)]);
+        });
+      });
     });
 
     container.querySelector("[data-toggle-search]").addEventListener("click", () => {
@@ -538,22 +599,27 @@ export function renderAstroPlanner(container) {
 
   render();
 
-  getCurrentPosition()
-    .then(({ lat, lon }) =>
-      reverseGeocode(lat, lon)
-        .then((r) => ({ lat, lon, name: r.name, timeZone: r.timeZone, countryCode: r.countryCode, countryName: r.countryName }))
-        .catch(() => ({ lat, lon, name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, timeZone: getTimeZone(lat, lon), countryCode: null, countryName: null }))
-    )
+  const initialLocation = pinId
+    ? getPin(pinId).then((pin) => {
+      if (!pin) throw new Error("Saved location not found");
+      return locationFromPin(pin);
+    })
+    : getCurrentPlannerLocation();
+
+  initialLocation
     .then((location) => {
-      if (disposed) return;
+      if (disposed || state.locationStatus !== "locating") return;
       state.location = location;
+      if (!dateChosen) state.dateValue = dateInZone(new Date(), location.timeZone);
       state.locationStatus = "resolved";
       render();
     })
     .catch((err) => {
-      if (disposed) return;
+      if (disposed || state.locationStatus !== "locating") return;
       console.warn("[astroPlanner] auto-locate failed, falling back to default location", err);
-      state.location = { ...FALLBACK_LOCATION };
+      state.location = pinId
+        ? { ...DEFAULT_LOCATION, name: `${DEFAULT_LOCATION.name} (saved location unavailable)` }
+        : { ...FALLBACK_LOCATION };
       state.locationStatus = "fallback";
       render();
     });
@@ -564,4 +630,3 @@ export function renderAstroPlanner(container) {
     closeNightAR();
   };
 }
-

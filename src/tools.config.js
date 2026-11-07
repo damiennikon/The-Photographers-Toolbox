@@ -65,6 +65,22 @@ export const TOOLS = [
     bg: "planner",
     type: "internal",
   },
+  {
+    id: "my-shoots",
+    name: "MY SHOOTS",
+    description: "Save your shooting plans and take them into the field.",
+    icon: "calendar",
+    bg: "map",
+    type: "internal",
+  },
+  {
+    id: "nd-timer",
+    name: "ND FILTER & TIMER",
+    description: "Calculate long exposures and time them in the field.",
+    icon: "clock",
+    bg: "planner",
+    type: "internal",
+  },
 ];
 
 export function getTool(id) {
