@@ -4,6 +4,7 @@ import { navigate } from "../router.js";
 import { openNavDrawer } from "../components/navDrawer.js";
 import { openSettings } from "../components/settingsModal.js";
 import { openPlaceholder } from "../components/placeholderModal.js";
+import toolboxLogo from "../assets/toolbox-logo.webp";
 
 function tileMarkup(tool) {
   const bgImg = tool.backgroundImage
@@ -32,8 +33,9 @@ export function renderHome(container) {
       </header>
 
       <section class="pt-hero">
-        <div class="pt-hero-mark">${icon("aperture")}</div>
-        <h1 class="pt-hero-title">PHOTOGRAPHER'S <span>TOOLBOX</span></h1>
+        <h1 class="pt-hero-logo">
+          <img src="${toolboxLogo}" width="1320" height="760" alt="Photographer's Toolbox" />
+        </h1>
         <p class="pt-hero-tagline">Everything you need. Right when you need it.</p>
         <div class="pt-hero-divider"></div>
       </section>

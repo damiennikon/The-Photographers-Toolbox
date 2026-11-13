@@ -52,58 +52,16 @@
   flex: 0 0 auto;
 }
 
-.pt-hero-mark {
-  width: 76px;
-  height: 76px;
-  border: 2px solid var(--pt-accent);
-  border-radius: var(--pt-radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  box-shadow: 0 0 24px var(--pt-accent-glow);
+.pt-hero-logo {
+  width: min(100%, 420px);
 }
 
-.pt-hero-mark::before,
-.pt-hero-mark::after {
-  content: "";
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border: 1px solid var(--pt-accent-dim);
-}
-
-.pt-hero-mark::before {
-  top: -1px;
-  left: -1px;
-  border-right: none;
-  border-bottom: none;
-}
-
-.pt-hero-mark::after {
-  bottom: -1px;
-  right: -1px;
-  border-left: none;
-  border-top: none;
-}
-
-.pt-hero-mark svg {
-  width: 40px;
-  height: 40px;
-  color: var(--pt-accent);
-}
-
-.pt-hero-title {
-  font-family: var(--pt-font-heading);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: clamp(28px, 7vw, 40px);
-  color: var(--pt-text);
-}
-
-.pt-hero-title span {
-  color: var(--pt-accent);
+.pt-hero-logo img {
+  width: 100%;
+  height: auto;
+  mask-image: linear-gradient(to right, transparent, #000 5% 95%, transparent),
+    linear-gradient(to bottom, transparent, #000 6% 94%, transparent);
+  mask-composite: intersect;
 }
 
 .pt-hero-tagline {
