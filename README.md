@@ -15,6 +15,10 @@ Map Locations can export and restore pins, notes, and reference photos. A
 restore leaves existing pins with matching IDs in place. Location backups do
 not include My Shoots.
 
+Settings lets you choose a starting location for Sun Planner and Astro Planner
+and a 12- or 24-hour display for planner times and My Shoots. Preferences are
+saved on the current device.
+
 ## Develop
 
 ```bash
@@ -86,5 +90,4 @@ shell, built bundles, icons, and tile artwork.
 
 - Native migration of the external tools' code into this shell
 - Shared auth/state between tools
-- Real settings functionality
 - Unified caching across embedded tools (each keeps its own service worker)

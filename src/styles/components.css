@@ -59,6 +59,10 @@
 .pt-hero-logo img {
   width: 100%;
   height: auto;
+}
+
+.pt-hero-logo img,
+.pt-about-logo {
   mask-image: linear-gradient(to right, transparent, #000 5% 95%, transparent),
     linear-gradient(to bottom, transparent, #000 6% 94%, transparent);
   mask-composite: intersect;
@@ -323,6 +327,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--pt-space-1);
+  overflow-y: auto;
 }
 
 .pt-drawer-link {
@@ -425,6 +430,53 @@
 
 .pt-modal-close:hover {
   background: rgba(224, 41, 58, 0.1);
+}
+
+.pt-app-dialog {
+  width: min(420px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  color: var(--pt-text);
+}
+
+.pt-app-dialog::backdrop {
+  background: rgb(0 0 0 / 0.65);
+}
+
+.pt-app-dialog-content {
+  margin: var(--pt-space-4) 0 var(--pt-space-5);
+  text-align: left;
+  font-size: 14px;
+  color: var(--pt-text-muted);
+}
+
+.pt-app-dialog-content label {
+  color: var(--pt-text);
+}
+
+.pt-app-dialog-content a {
+  justify-self: start;
+  color: var(--pt-text);
+  text-underline-offset: 3px;
+}
+
+.pt-app-dialog-actions {
+  display: flex;
+  gap: var(--pt-space-2);
+}
+
+.pt-app-dialog-save {
+  color: var(--pt-text);
+  background: var(--pt-accent-dim);
+}
+
+.pt-app-dialog-save:hover {
+  background: #85202b;
+}
+
+.pt-about-logo {
+  width: min(100%, 230px);
+  height: auto;
+  margin: var(--pt-space-3) auto 0;
 }
 
 /* ---------- tool view ---------- */

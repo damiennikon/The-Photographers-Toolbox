@@ -1,4 +1,5 @@
 import tzlookup from "tz-lookup";
+import { getPreferences } from "./preferences.js";
 
 const FALLBACK_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
@@ -88,6 +89,7 @@ export function addLocalCalendarDays(date, days, timeZone = FALLBACK_TIME_ZONE) 
 
 export function formatTimeInZone(date, timeZone = FALLBACK_TIME_ZONE) {
   if (!(date instanceof Date) || !Number.isFinite(date.getTime())) return "—";
-  return date.toLocaleTimeString([], { timeZone, hour: "2-digit", minute: "2-digit", hour12: false });
+  const hourCycle = getPreferences().timeFormat === "12" ? "h12" : "h23";
+  return date.toLocaleTimeString([], { timeZone, hour: "2-digit", minute: "2-digit", hourCycle });
 }
 
