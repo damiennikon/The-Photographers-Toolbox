@@ -5,29 +5,16 @@ import { getTool } from "../tools.config.js";
 import { navigate } from "../router.js";
 import { getSunPosition, getSunTimes, parseCalendarDate } from "../lib/astroCalc.js";
 import { createLocationSearch, getCurrentPlannerLocation } from "../lib/geocode.js";
-import { getAllPins, getPin } from "../lib/pinStore.js";
+import { getAllPins } from "../lib/pinStore.js";
 import { categoryById } from "../lib/pinCategories.js";
+import { getPreferences } from "../lib/preferences.js";
+import { DEFAULT_LOCATION, getPlannerStartLocation, plannerFallbackLocation } from "../lib/plannerLocation.js";
 import { clockInZone, dateInZone, formatTimeInZone, getTimeZone, parseLocalDateTime } from "../lib/timezone.js";
 import { locationFromPin, shootingWindow } from "../lib/shootPlan.js";
 import { openSaveShoot } from "../components/saveShoot.js";
 import { escapeHtml } from "../components/fieldTools.js";
 import { alignmentMarkup, mountAlignment } from "../components/shotAlignment.js";
 import { signedAngle } from "../lib/shotAlignment.js";
-
-// Matches the default location used by the toolbox's other tools.
-const DEFAULT_LOCATION = {
-  name: "Loganholme, QLD",
-  lat: -27.6954,
-  lon: 153.1185,
-  timeZone: getTimeZone(-27.6954, 153.1185),
-  countryCode: "au",
-  countryName: "Australia",
-};
-
-// Used only when auto-locate genuinely fails and we fall back to
-// DEFAULT_LOCATION, so the fallback is visibly distinct from a real fix
-// (see locationStatus "fallback" below) instead of reading as one.
-const FALLBACK_LOCATION = { ...DEFAULT_LOCATION, name: `${DEFAULT_LOCATION.name} (default — location unavailable)` };
 
 const MAP_INIT_ZOOM = 11;
 const MAP_FOCUS_ZOOM = 13;
@@ -288,7 +275,7 @@ export function renderSunPlanner(container, query = new URLSearchParams()) {
   let dateChosen = false;
   let timeChosen = false;
   let locationRequest = 0;
-  const pinId = query.get("pin");
+  const pinId = query.get("pin") || getPreferences().plannerPinId;
   const now = new Date();
   const state = {
     dateValue: dateInZone(now, DEFAULT_LOCATION.timeZone),
@@ -508,7 +495,7 @@ export function renderSunPlanner(container, query = new URLSearchParams()) {
           })
           .catch(() => {
             if (disposed || request !== locationRequest) return;
-            if (state.locationStatus === "locating") selectLocation(FALLBACK_LOCATION, "fallback", true);
+            if (state.locationStatus === "locating") selectLocation(plannerFallbackLocation(), "fallback", true);
             currentLocationBtn.disabled = false;
           });
       });
@@ -558,23 +545,14 @@ export function renderSunPlanner(container, query = new URLSearchParams()) {
     .catch((err) => console.error("Failed to load saved pins", err));
 
   const request = ++locationRequest;
-  const initialLocation = pinId
-    ? getPin(pinId).then((pin) => {
-      if (!pin) throw new Error("Saved location not found");
-      return locationFromPin(pin);
-    })
-    : getCurrentPlannerLocation();
-  initialLocation
+  getPlannerStartLocation(pinId)
     .then((location) => {
       if (request === locationRequest) selectLocation(location, "resolved", true);
     })
     .catch((err) => {
       if (disposed || request !== locationRequest) return;
-      console.warn("[sunPlanner] auto-locate failed, falling back to default location", err);
-      const fallback = pinId
-        ? { ...DEFAULT_LOCATION, name: `${DEFAULT_LOCATION.name} (saved location unavailable)` }
-        : FALLBACK_LOCATION;
-      selectLocation(fallback, "fallback", true);
+      console.warn("[sunPlanner] Could not load start location", err);
+      selectLocation(plannerFallbackLocation(pinId), "fallback", true);
     });
 
   container.querySelector("[data-back]").addEventListener("click", () => {

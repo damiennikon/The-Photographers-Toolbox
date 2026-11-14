@@ -13,30 +13,16 @@ import {
   DSO_MIN_ALTITUDE,
   parseCalendarDate,
 } from "../lib/astroCalc.js";
-import { createLocationSearch, getCurrentPlannerLocation } from "../lib/geocode.js";
+import { createLocationSearch } from "../lib/geocode.js";
 import { closeNightAR, openNightAR, openPolarAlign } from "../components/nightAR.js";
 import { dateInZone, formatTimeInZone, getTimeZone } from "../lib/timezone.js";
-import { getPin } from "../lib/pinStore.js";
-import { locationFromPin, shootingWindow } from "../lib/shootPlan.js";
+import { getPreferences } from "../lib/preferences.js";
+import { DEFAULT_LOCATION, getPlannerStartLocation, plannerFallbackLocation } from "../lib/plannerLocation.js";
+import { shootingWindow } from "../lib/shootPlan.js";
 import { openSaveShoot, windowTime } from "../components/saveShoot.js";
 import { escapeHtml } from "../components/fieldTools.js";
 import { CORE_MIN_ALTITUDE, rankNights } from "../lib/bestNights.js";
 import { DSO_DATABASE } from "../../database/database.js";
-
-// Matches the default location used by the toolbox's other tools.
-const DEFAULT_LOCATION = {
-  name: "Loganholme, QLD",
-  lat: -27.6954,
-  lon: 153.1185,
-  timeZone: getTimeZone(-27.6954, 153.1185),
-  countryCode: "au",
-  countryName: "Australia",
-};
-
-// Used only when auto-locate genuinely fails and we fall back to
-// DEFAULT_LOCATION, so the fallback is visibly distinct from a real fix
-// (see locationStatus "fallback" below) instead of reading as one.
-const FALLBACK_LOCATION = { ...DEFAULT_LOCATION, name: `${DEFAULT_LOCATION.name} (default — location unavailable)` };
 
 function formatTime(date, timeZone) {
   return formatTimeInZone(date, timeZone);
@@ -406,7 +392,7 @@ export function renderAstroPlanner(container, query = new URLSearchParams()) {
 
   let disposed = false;
   let dateChosen = false;
-  const pinId = query.get("pin");
+  const pinId = query.get("pin") || getPreferences().plannerPinId;
   const state = {
     dateValue: dateInZone(new Date(), DEFAULT_LOCATION.timeZone),
     location: { ...DEFAULT_LOCATION },
@@ -599,14 +585,7 @@ export function renderAstroPlanner(container, query = new URLSearchParams()) {
 
   render();
 
-  const initialLocation = pinId
-    ? getPin(pinId).then((pin) => {
-      if (!pin) throw new Error("Saved location not found");
-      return locationFromPin(pin);
-    })
-    : getCurrentPlannerLocation();
-
-  initialLocation
+  getPlannerStartLocation(pinId)
     .then((location) => {
       if (disposed || state.locationStatus !== "locating") return;
       state.location = location;
@@ -616,10 +595,8 @@ export function renderAstroPlanner(container, query = new URLSearchParams()) {
     })
     .catch((err) => {
       if (disposed || state.locationStatus !== "locating") return;
-      console.warn("[astroPlanner] auto-locate failed, falling back to default location", err);
-      state.location = pinId
-        ? { ...DEFAULT_LOCATION, name: `${DEFAULT_LOCATION.name} (saved location unavailable)` }
-        : { ...FALLBACK_LOCATION };
+      console.warn("[astroPlanner] Could not load start location", err);
+      state.location = plannerFallbackLocation(pinId);
       state.locationStatus = "fallback";
       render();
     });

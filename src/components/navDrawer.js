@@ -2,6 +2,7 @@ import { icon } from "../icons.js";
 import { TOOLS } from "../tools.config.js";
 import { navigate } from "../router.js";
 import { openPlaceholder } from "./placeholderModal.js";
+import { openAbout } from "./aboutModal.js";
 
 let root = null;
 
@@ -60,7 +61,8 @@ export function mountNavDrawer(container) {
   host.querySelector("[data-nav-about]").addEventListener("click", (e) => {
     e.preventDefault();
     closeNavDrawer();
-    openPlaceholder("About", "About info is coming soon.");
+    document.querySelector("[data-open-nav]")?.focus();
+    openAbout();
   });
 
   document.addEventListener("keydown", (e) => {
