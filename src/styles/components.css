@@ -453,12 +453,6 @@
   color: var(--pt-text);
 }
 
-.pt-app-dialog-content a {
-  justify-self: start;
-  color: var(--pt-text);
-  text-underline-offset: 3px;
-}
-
 .pt-app-dialog-actions {
   display: flex;
   gap: var(--pt-space-2);
