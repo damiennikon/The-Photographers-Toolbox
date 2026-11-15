@@ -7,6 +7,7 @@
 //
 // backgroundImage: path relative to the app's base (resolved against
 // import.meta.env.BASE_URL at render time) -> public/assets/tiles/*.webp.
+// darkenBackground: stronger scrim for images with highlights behind the copy.
 // bg: fallback CSS gradient class suffix, used if backgroundImage is
 // missing or fails to load (see .pt-tile-bg--<bg> in components.css).
 export const TOOLS = [
@@ -55,6 +56,8 @@ export const TOOLS = [
     description: "Pin and organize your favourite photography spots.",
     icon: "mapPin",
     bg: "map",
+    backgroundImage: "assets/tiles/map-locations.webp",
+    darkenBackground: true,
     type: "internal",
   },
   {
@@ -63,6 +66,7 @@ export const TOOLS = [
     description: "Sunrise, sunset, golden hour and sun direction for any spot.",
     icon: "sunrise",
     bg: "planner",
+    backgroundImage: "assets/tiles/sun-planner.webp",
     type: "internal",
   },
   {
@@ -71,6 +75,8 @@ export const TOOLS = [
     description: "Save your shooting plans and take them into the field.",
     icon: "calendar",
     bg: "map",
+    backgroundImage: "assets/tiles/my-shoots.webp",
+    darkenBackground: true,
     type: "internal",
   },
   {
@@ -79,6 +85,8 @@ export const TOOLS = [
     description: "Calculate long exposures and time them in the field.",
     icon: "clock",
     bg: "planner",
+    backgroundImage: "assets/tiles/nd-timer.webp",
+    darkenBackground: true,
     type: "internal",
   },
 ];

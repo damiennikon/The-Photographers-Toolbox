@@ -160,7 +160,11 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(10, 14, 20, 0.08) 0%, rgba(10, 14, 20, 0.6) 55%, rgba(10, 14, 20, 0.92) 100%);
+  background: linear-gradient(180deg, rgba(10, 14, 20, 0.08) 0%, rgba(10, 14, 20, var(--pt-tile-scrim, 0.6)) 55%, rgba(10, 14, 20, 0.92) 100%);
+}
+
+.pt-tile-bg--dark:not(.pt-tile-bg--fallback) {
+  --pt-tile-scrim: 0.76;
 }
 
 /* No image / image failed to load -> fall back to the flat gradient card
