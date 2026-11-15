@@ -12,10 +12,11 @@ function tileMarkup(tool) {
     : "";
   // No backgroundImage configured -> render straight into fallback mode.
   const fallbackClass = tool.backgroundImage ? "" : ` pt-tile-bg--fallback pt-tile-bg--${tool.bg}`;
+  const scrimClass = tool.darkenBackground ? " pt-tile-bg--dark" : "";
 
   return `
     <a href="#" class="pt-tile" data-tool-id="${tool.id}" data-tool-type="${tool.type}" data-disabled="${tool.type === "placeholder"}">
-      <div class="pt-tile-bg${fallbackClass}" data-tile-bg data-bg="${tool.bg}">${bgImg}</div>
+      <div class="pt-tile-bg${fallbackClass}${scrimClass}" data-tile-bg data-bg="${tool.bg}">${bgImg}</div>
       <div class="pt-tile-badge">${icon(tool.icon)}</div>
       <h3 class="pt-tile-name">${tool.name}</h3>
       <div class="pt-tile-underline"></div>
