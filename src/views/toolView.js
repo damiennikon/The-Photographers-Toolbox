@@ -23,8 +23,13 @@ export function renderToolView(container, toolId) {
     return;
   }
 
+  // The outer document must not become a second scroll container around an
+  // embedded app. Track Safari's visible viewport, including toolbar changes.
+  const previousPosition = { x: window.scrollX, y: window.scrollY };
+  document.documentElement.classList.add("pt-embedded-tool");
+
   container.innerHTML = `
-    <div class="pt-tool-view">
+    <div class="pt-tool-view pt-tool-view--embedded">
       <header class="pt-tool-topbar">
         <button class="pt-tool-back" data-back aria-label="Back to toolbox">
           ${icon("arrowLeft")}
@@ -42,6 +47,19 @@ export function renderToolView(container, toolId) {
         </div>
       </div>
     </div>`;
+
+  const view = container.querySelector(".pt-tool-view");
+  const viewport = window.visualViewport;
+  const syncViewport = () => {
+    // Leave pinch zoom to the browser; changing layout during zoom fights it.
+    const useVisual = viewport && viewport.scale === 1;
+    view.style.setProperty("--pt-viewport-height", `${useVisual ? viewport.height : window.innerHeight}px`);
+    view.style.setProperty("--pt-viewport-top", `${useVisual ? viewport.offsetTop : 0}px`);
+  };
+  syncViewport();
+  window.addEventListener("resize", syncViewport);
+  viewport?.addEventListener("resize", syncViewport);
+  viewport?.addEventListener("scroll", syncViewport);
 
   container.querySelector("[data-back]").addEventListener("click", () => navigate("/"));
 
@@ -69,14 +87,16 @@ export function renderToolView(container, toolId) {
   iframe.title = tool.name;
   iframe.allow = "geolocation; fullscreen";
   iframe.referrerPolicy = "no-referrer-when-downgrade";
-  iframe.style.display = "none";
+  // Keep a real viewport while loading; display:none can initialise an iOS
+  // frame at zero size before its popup reads innerHeight.
+  iframe.style.visibility = "hidden";
 
   iframe.addEventListener("load", () => {
     if (settled) return;
     settled = true;
     clearTimeout(timer);
     loadingEl.remove();
-    iframe.style.display = "block";
+    iframe.style.visibility = "visible";
   });
 
   iframe.addEventListener("error", showFallback);
@@ -87,6 +107,11 @@ export function renderToolView(container, toolId) {
     settled = true;
     clearTimeout(timer);
     iframe.remove();
+    window.removeEventListener("resize", syncViewport);
+    viewport?.removeEventListener("resize", syncViewport);
+    viewport?.removeEventListener("scroll", syncViewport);
+    document.documentElement.classList.remove("pt-embedded-tool");
+    window.scrollTo({ left: previousPosition.x, top: previousPosition.y, behavior: "instant" });
   };
 }
 

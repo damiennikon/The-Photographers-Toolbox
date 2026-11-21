@@ -20,9 +20,13 @@ body {
 }
 
 #app {
-  min-height: 100dvh;
   min-height: 100vh;
+  min-height: 100dvh;
 }
+
+html.pt-embedded-tool,
+html.pt-embedded-tool body { overflow: hidden; }
+html.pt-embedded-tool body { position: fixed; inset: 0; width: 100%; }
 
 h1,
 h2,
